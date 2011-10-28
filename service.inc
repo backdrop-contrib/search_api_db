@@ -104,9 +104,6 @@ class SearchApiDbService extends SearchApiAbstractService {
     $prefix = 'search_api_db_' . $index->machine_name. '_';
     $indexes[$index->machine_name] = array();
     foreach ($index->options['fields'] as $name => $field) {
-      if (empty($field['indexed'])) {
-        continue;
-      }
       $table = $this->findFreeTable($prefix, $name);
       $this->createFieldTable($index, $field, $table);
       $indexes[$index->machine_name][$name]['table'] = $table;
@@ -223,11 +220,6 @@ class SearchApiDbService extends SearchApiAbstractService {
   public function fieldsUpdated(SearchApiIndex $index) {
     $fields = &$this->options['indexes'][$index->machine_name];
     $new_fields = $index->options['fields'];
-    foreach ($new_fields as $name => $field) {
-      if (empty($field['indexed'])) {
-        unset($new_fields[$name]);
-      }
-    }
 
     $reindex = FALSE;
     $cleared = FALSE;
