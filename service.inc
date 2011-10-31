@@ -219,7 +219,7 @@ class SearchApiDbService extends SearchApiAbstractService {
 
   public function fieldsUpdated(SearchApiIndex $index) {
     $fields = &$this->options['indexes'][$index->machine_name];
-    $new_fields = $index->options['fields'];
+    $new_fields = $index->getFields();
 
     $reindex = FALSE;
     $cleared = FALSE;
