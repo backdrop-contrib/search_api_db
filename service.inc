@@ -103,7 +103,7 @@ class SearchApiDbService extends SearchApiAbstractService {
 
     $prefix = 'search_api_db_' . $index->machine_name. '_';
     $indexes[$index->machine_name] = array();
-    foreach ($index->options['fields'] as $name => $field) {
+    foreach ($index->getFields() as $name => $field) {
       $table = $this->findFreeTable($prefix, $name);
       $this->createFieldTable($index, $field, $table);
       $indexes[$index->machine_name][$name]['table'] = $table;
