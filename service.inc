@@ -600,23 +600,18 @@ class SearchApiDbService extends SearchApiAbstractService {
       $this->warnings[$msg] = 1;
     }
 
-    $filter = $query->getFilter();
-    if ($filter->getFilters()) {
-      if (!isset($db_query)) {
-        $db_query = db_select($fields['search_api_language']['table'], 't', $this->query_options);
-        $db_query->addField('t', 'item_id', 'item_id');
-        $db_query->addExpression(':score', 'score', array(':score' => 1));
-      }
-      $condition = $this->createFilterCondition($filter, $fields, $db_query);
-      if ($condition) {
-        $db_query->condition($condition);
-      }
-    }
-
     if (!isset($db_query)) {
       $db_query = db_select($fields['search_api_language']['table'], 't', $this->query_options);
       $db_query->addField('t', 'item_id', 'item_id');
       $db_query->addExpression(':score', 'score', array(':score' => 1));
+    }
+
+    $filter = $query->getFilter();
+    if ($filter->getFilters()) {
+      $condition = $this->createFilterCondition($filter, $fields, $db_query);
+      if ($condition) {
+        $db_query->condition($condition);
+      }
     }
 
     $db_query->addTag('search_api_db_search');
