@@ -619,6 +619,8 @@ class SearchApiDbService extends SearchApiAbstractService {
       $db_query->addExpression(':score', 'score', array(':score' => 1));
     }
 
+    $db_query->addTag('search_api_db_search');
+
     $time_processing_done = microtime(TRUE);
     $results = array();
     $count_query = $db_query->countQuery();
