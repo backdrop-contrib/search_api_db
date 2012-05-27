@@ -1102,7 +1102,7 @@ class SearchApiDbService extends SearchApiAbstractService {
       $select->orderBy('num', 'DESC');
 
       $limit = $facet['limit'];
-      if ($limit) {
+      if ((int) $limit > 0) {
         $select->range(0, $limit);
       }
       if ($facet['min_count'] > 1) {
