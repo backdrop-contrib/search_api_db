@@ -334,6 +334,10 @@ class SearchApiDbService extends SearchApiAbstractService {
         db_delete($table, $this->query_options)
             ->condition('item_id', $id)
             ->execute();
+        // Don't index null values
+        if($field['value'] === NULL) {
+          continue;
+        }
         $type = $field['type'];
         $value = $this->convert($field['value'], $type, $field['original_type'], $index);
 
@@ -401,7 +405,7 @@ class SearchApiDbService extends SearchApiAbstractService {
             $insert->execute();
           }
         }
-        else {
+        elseif (isset($value)) {
           db_insert($table, $this->query_options)
             ->fields(array(
               'item_id' => $id,
@@ -426,13 +430,19 @@ class SearchApiDbService extends SearchApiAbstractService {
       if (is_array($value)) {
         foreach ($value as $v) {
           $v = $this->convert($v, $type, $original_type, $index);
-          $ret = array_merge($ret, is_array($v) ? $v : array($v));
+
+          // Don't add NULL values to the return array. Also, adding an empty
+          // array is, of course, a waste of time.
+          if (isset($v) && $v !== array()) {
+            $ret = array_merge($ret, is_array($v) ? $v : array($v));
+          }
         }
       }
       return $ret;
     }
     if (!isset($value)) {
-      return NULL;
+      // For text fields, we have to return an array even if the value is NULL.
+      return search_api_is_text_type($type, array('text', 'tokens')) ? array() : NULL;
     }
     switch ($type) {
       case 'text':
