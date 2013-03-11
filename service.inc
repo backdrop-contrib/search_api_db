@@ -1117,8 +1117,6 @@ class SearchApiDbService extends SearchApiAbstractService {
     }
     $expressions = &$db_query->getExpressions();
     $expressions = array();
-    $group_by = &$db_query->getGroupBy();
-    $group_by = array();
     $db_query->distinct();
     if (!$db_query->preExecute()) {
       return array();
