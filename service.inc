@@ -192,6 +192,24 @@ class SearchApiDbService extends SearchApiAbstractService {
 
     $set = $this->setDb();
     db_create_table($name, $table);
+
+    //Some DBMSs will need a character encoding and collation set.
+    global $databases;
+    list($key, $target) = explode(':', $this->options['database'], 2);
+    $db_driver = $databases[$key][$target]['driver'];
+
+    switch ($db_driver) {
+      case 'mysql':
+        db_query("ALTER TABLE {$name} CONVERT TO CHARACTER SET 'utf8' COLLATE 'utf8_bin'")->execute();
+        break;
+      // @todo Add fixes for other DBMSs.
+      case 'oracle':
+      case 'pgsql':
+      case 'sqlite':
+      case 'sqlsrv':
+        break;
+    }
+
     if ($set) {
       $this->resetDb();
     }
