@@ -326,9 +326,24 @@ class SearchApiDbService extends SearchApiAbstractService {
 
   protected function indexItem(SearchApiIndex $index, $id, array $item) {
     $fields = $this->options['indexes'][$index->machine_name];
+    $fields_updated = FALSE;
     $txn = db_transaction('search_api_indexing', $this->query_options);
     try {
       foreach ($item as $name => $field) {
+        // Sometimes index changes are not triggering the update hooks
+        // correctly. Therefore, to avoid DB errors, we re-check the tables
+        // here before indexing.
+        if (empty($fields[$name]['table']) && !$fields_updated) {
+          unset($this->options['indexes'][$index->machine_name][$name]);
+          $this->fieldsUpdated($index);
+          $fields_updated = TRUE;
+          $fields = $this->options['indexes'][$index->machine_name];
+        }
+        if (empty($fields[$name]['table'])) {
+          watchdog('search_api_db', "Unknown field !field: please check (and re-save) the index's fields settings.",
+              array('!field' => $name), WATCHDOG_WARNING);
+          continue;
+        }
         $table = $fields[$name]['table'];
         $boost = $fields[$name]['boost'];
         db_delete($table, $this->query_options)
