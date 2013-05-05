@@ -1152,7 +1152,8 @@ class SearchApiDbService extends SearchApiAbstractService {
       if ($facet['min_count'] > 1) {
         $select->having('num >= :count', array(':count' => $facet['min_count']));
       }
-      if (((bool) $facet['missing']) === search_api_is_list_type($field['type'])) {
+      $list_or_text = search_api_is_list_type($field['type']) || search_api_is_text_type($field['type']);
+      if (((bool) $facet['missing']) === $list_or_text) {
         // For multi-valued fields, the "missing" facet is defined by the table
         // not having any entries for those items. We therefore need to execute
         // an additional query, counting the items which do not have any entries
