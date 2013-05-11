@@ -220,11 +220,7 @@ class SearchApiDbTest extends DrupalWebTestCase {
     $this->assertText('result count = 1', t('Search with multi-term fulltext filter returned correct result.', array('!keys' => 'test foobar')));
     $this->assertText('results = (3)', t('Search with multi-term fulltext filter returned correct result.', array('!keys' => 'test foobar')));
     $this->assertText('ignored = ()', t('No keys were ignored.'));
-    $text = filter_xss($this->drupalGetContent());
-    $pos = strpos($text, 'warnings = (');
-    $pos2 = strpos($text, ')', $pos);
-    $text = substr($text, $pos, $pos2 - $pos + 1);
-    $this->assertText('warnings = ()', $text);
+    $this->assertText('warnings = ()', t('No warnings were displayed.'));
 
     $this->drupalGet($base . '/"test foo"/0/10//search_api_relevance,DESC');
     $this->assertText('result count = 4', t('Search for »!keys« returned correct result.', array('!keys' => '"test foo"')));
