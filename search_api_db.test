@@ -109,7 +109,7 @@ class SearchApiDbTest extends DrupalWebTestCase {
     $this->drupalPost(NULL, $values2, t('Create server'));
 
     $this->assertText(t('The server was successfully created.'));
-    $found = strpos($this->getUrl(), '/admin/config/search/search_api/server/' . $this->server_id) !== FALSE;
+    $found = strpos($this->getUrl(), 'admin/config/search/search_api/server/' . $this->server_id) !== FALSE;
     $this->assertTrue($found, t('Correct redirect.'));
   }
 
@@ -220,7 +220,11 @@ class SearchApiDbTest extends DrupalWebTestCase {
     $this->assertText('result count = 1', t('Search with multi-term fulltext filter returned correct result.', array('!keys' => 'test foobar')));
     $this->assertText('results = (3)', t('Search with multi-term fulltext filter returned correct result.', array('!keys' => 'test foobar')));
     $this->assertText('ignored = ()', t('No keys were ignored.'));
-    $this->assertText('warnings = ()', t('No warnings were displayed.'));
+    $text = filter_xss($this->drupalGetContent());
+    $pos = strpos($text, 'warnings = (');
+    $pos2 = strpos($text, ')', $pos);
+    $text = substr($text, $pos, $pos2 - $pos + 1);
+    $this->assertText('warnings = ()', $text);
 
     $this->drupalGet($base . '/"test foo"/0/10//search_api_relevance,DESC');
     $this->assertText('result count = 4', t('Search for »!keys« returned correct result.', array('!keys' => '"test foo"')));
@@ -237,7 +241,7 @@ class SearchApiDbTest extends DrupalWebTestCase {
     $this->drupalGet($base . '/|COMPLEX|');
     $this->assertText('result count = 1', t('Complex search returned correct result.'));
     $this->assertText('results = (3)', t('Complex search returned correct result.'));
-    $this->assertText('ignored = (baz, bar)', t('No keys were ignored.'));
+    $this->assertText('ignored = (baz, bar)', t('Correct keys were ignored.'));
     $this->assertText('warnings = ()', t('No warnings were displayed.'));
   }
 
