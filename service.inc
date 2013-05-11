@@ -1061,21 +1061,23 @@ class SearchApiDbService extends SearchApiAbstractService {
         if (!isset($fields[$f[0]])) {
           throw new SearchApiException(t('Unknown field in filter clause: @field.', array('@field' => $f[0])));
         }
+        $field = $fields[$f[0]];
         if ($f[1] === NULL) {
-          $query = db_select($fields[$f[0]]['table'], 't')
+          $query = db_select($field['table'], 't')
             ->fields('t', array('item_id'));
           $cond->condition('t.item_id', $query, $f[2] == '<>' || $f[2] == '!=' ? 'IN' : 'NOT IN');
           continue;
         }
-        if (search_api_is_text_type($fields[$f[0]]['type'])) {
-          // #negation is set here purely because we don't want any score.
-          $keys = array('#conjunction' => 'AND', '#negation' => TRUE, $f[1]);
-          $keys = $this->prepareKeys($keys);
-          $query = $this->createKeysQuery($keys, array($fields[$f[0]]), $fields);
+        if (search_api_is_text_type($field['type'])) {
+          $keys = $this->prepareKeys($f[1]);
+          $query = $this->createKeysQuery($keys, array($field), $fields);
+          // We don't need the score.
+          $query_expressions = &$query->getExpressions();
+          $query_expressions = array();
           $cond->condition('t.item_id', $query, $f[2] == '<>' || $f[2] == '!=' ? 'NOT IN' : 'IN');
         }
         else {
-          $alias = $this->getTableAlias($fields[$f[0]], $db_query, search_api_is_list_type($fields[$f[0]]['type']));
+          $alias = $this->getTableAlias($field, $db_query, search_api_is_list_type($field['type']));
           $cond->condition($alias . '.value', $f[1], $f[2]);
         }
       }
@@ -1152,12 +1154,10 @@ class SearchApiDbService extends SearchApiAbstractService {
       if ($facet['min_count'] > 1) {
         $select->having('num >= :count', array(':count' => $facet['min_count']));
       }
-      $list_or_text = search_api_is_list_type($field['type']) || search_api_is_text_type($field['type']);
-      if (((bool) $facet['missing']) === $list_or_text) {
-        // For multi-valued fields, the "missing" facet is defined by the table
-        // not having any entries for those items. We therefore need to execute
-        // an additional query, counting the items which do not have any entries
-        // in the field table.
+      if ($facet['missing']) {
+        // The "missing" facet is defined by the table not having any entries
+        // for those items. We therefore need to execute an additional query,
+        // counting the items which do not have any entries in the field table.
         if ($facet['missing']) {
           $inner_query = db_select($field['table'], 't1')
             ->fields('t1', array('item_id'));
@@ -1166,12 +1166,6 @@ class SearchApiDbService extends SearchApiAbstractService {
           $missing_count->condition('item_id', $inner_query, 'NOT IN');
           $missing_count = $missing_count->execute()->fetchField();
           $missing_count = $missing_count >= $facet['min_count'] ? $missing_count : 0;
-        }
-        // For single-valued fields, there are explicit NULL values in the
-        // table for "missing" entries. Therefore, we have to exclude NULL
-        // values if we do not want a "missing" facet.
-        else {
-          $select->isNotNull('value');
         }
       }
 
