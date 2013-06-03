@@ -182,10 +182,12 @@ class SearchApiDbService extends SearchApiAbstractService {
     }
     else {
       $table['fields']['value'] = $this->sqlType($type);
-      $table['fields']['value'] += array('description' => "The field's value for this item.");
+      $table['fields']['value'] += array(
+        'description' => "The field's value for this item.",
+        'not null' => TRUE,
+      );
       if ($type != $field['type']) {
         // This is a list type.
-        $table['fields']['value']['not null'] = TRUE;
         $table['primary key'] = array('item_id', 'value');
       }
       else {
@@ -1115,7 +1117,7 @@ class SearchApiDbService extends SearchApiAbstractService {
         }
       }
     }
-    return $db_query->join($field['table'], 't', 't.item_id = %alias.item_id');
+    return $db_query->leftJoin($field['table'], 't', 't.item_id = %alias.item_id');
   }
 
   /**
