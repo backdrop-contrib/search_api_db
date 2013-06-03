@@ -1071,9 +1071,18 @@ class SearchApiDbService extends SearchApiAbstractService {
         if (search_api_is_text_type($field['type'])) {
           $keys = $this->prepareKeys($f[1]);
           $query = $this->createKeysQuery($keys, array($field), $fields);
-          // We don't need the score.
+          // We don't need the score, so we remove it. The score might either be
+          // an expression or a field.
           $query_expressions = &$query->getExpressions();
-          $query_expressions = array();
+          if ($query_expressions) {
+            $query_expressions = array();
+          }
+          else {
+            $query_fields = &$query->getFields();
+            unset($query_fields['score']);
+            unset($query_fields);
+          }
+          unset($query_expressions);
           $cond->condition('t.item_id', $query, $f[2] == '<>' || $f[2] == '!=' ? 'NOT IN' : 'IN');
         }
         else {
