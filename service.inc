@@ -122,22 +122,24 @@ class SearchApiDbService extends SearchApiAbstractService {
    * Helper method for finding free table names for fields.
    *
    * MySQL 5.0 imposes a 64 characters length limit for table names, PostgreSQL
-   * 8.3 only allows 63 characters. Therefore, always return a name at most 63
-   * characters long.
+   * 8.3 only allows 63 bytes. Therefore, always return a name at most 63
+   * bytes long.
    */
   protected function findFreeTable($prefix, $name) {
     // A DB prefix might further reduce the maximum length of the table name.
-    $maxlen = 63;
+    $maxbytes = 62;
     list($key, $target) = explode(':', $this->options['database'], 2);
     if ($db_prefix = Database::getConnection($target, $key)->tablePrefix()) {
-      $maxlen -= drupal_strlen($db_prefix);
+      // Use strlen instead of drupal_strlen since we want to measure bytes
+      // instead of characters.
+      $maxbytes -= strlen($db_prefix);
     }
 
-    $base = $table = drupal_substr($prefix . drupal_strtolower(preg_replace('/[^a-z0-9]/i', '_', $name)), 0, $maxlen);
+    $base = $table = mb_strcut($prefix . drupal_strtolower(preg_replace('/[^a-z0-9]/i', '_', $name)), 0, $maxbytes);
     $i = 0;
     while (db_table_exists($table)) {
       $suffix = '_' . ++$i;
-      $table = drupal_substr($base, 0, $maxlen - drupal_strlen($suffix)) . $suffix;
+      $table = mb_strcut($base, 0, $maxbytes - strlen($suffix)) . $suffix;
     }
     return $table;
   }
