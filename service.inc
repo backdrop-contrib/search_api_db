@@ -616,6 +616,7 @@ class SearchApiDbService extends SearchApiAbstractService {
   public function search(SearchApiQueryInterface $query) {
     $time_method_called = microtime(TRUE);
     $set = $this->setDb();
+    $this->ignored = $this->warnings = array();
     $index = $query->getIndex();
     if (empty($this->options['indexes'][$index->machine_name])) {
       throw new SearchApiException(t('Unknown index @id.', array('@id' => $index->machine_name)));
