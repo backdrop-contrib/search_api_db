@@ -1,0 +1,31 @@
+Search API Database Search 1.x, dev (xx/xx/xxxx):
+-------------------------------------------------
+- #2012688 by drunken monkey: Fixed left-over data when executing two searches
+  in a row.
+- #2010760 by drunken monkey, bago: Fixed handling of database string length
+  restrictions.
+- #1214846 by xatoo: Fixed overlong table names if prefixes are used.
+- #2007872 by drunken monkey: Fixed problems when filtering or sorting on
+  possibly empty fields.
+- #2006870 by drunken monkey: Fixed negated filters on fulltext fields.
+
+Search API Database Search 1.0, RC 1 (05/17/2013):
+--------------------------------------------------
+- #1860028 by drunken monkey: Fixed fulltext filters with multiple words.
+- #1805640 by drunken monkey: Fixed improper handling of 'missing' facets for
+  fulltext fields.
+- #1976708 by hefox: Fixed missing table prefix when creating fulltext field
+  tables.
+- #1414078 by drunken monkey: Fixed wrong reaction to server reverts.
+- #1403916 by Christofer Roth, drunken monkey: Fixed facets for multi-word
+  searches.
+- #1144620 by axel.rutz, drunken monkey: Fixed problems with umlauts, accented
+  characters, etc. on MySQL databases.
+- #1346846 by drunken monkey, klaasvw: Fixed DB exception when indexing with
+  stale index data.
+- #1649042 by drunken monkey, Jelle_S, DYdave, mortona2k, sardbaba: Fixed
+  handling of NULL values when indexing.
+
+Search API Database Search 1.0, Beta 4 (10/30/2012):
+----------------------------------------------------
+See respective release notes for details on earlier releases.
