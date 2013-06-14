@@ -1,5 +1,7 @@
 Search API Database Search 1.x, dev (xx/xx/xxxx):
 -------------------------------------------------
+- #1863672 by drunken monkey, k.dani, bago: Fixed multiple content in the search
+  result when using multiple terms for filtering.
 - #2012688 by drunken monkey: Fixed left-over data when executing two searches
   in a row.
 - #2010760 by drunken monkey, bago: Fixed handling of database string length

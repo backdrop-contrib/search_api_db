@@ -644,6 +644,7 @@ class SearchApiDbService extends SearchApiAbstractService {
         $db_query = $this->createKeysQuery($keys, $fulltext_fields, $fields);
         if (is_array($keys) && !empty($keys['#negation'])) {
           $db_query->addExpression(':score', 'score', array(':score' => 1));
+          $db_query->distinct();
         }
       }
       else {
@@ -661,6 +662,7 @@ class SearchApiDbService extends SearchApiAbstractService {
       $db_query = db_select($fields['search_api_language']['table'], 't', $this->query_options);
       $db_query->addField('t', 'item_id', 'item_id');
       $db_query->addExpression(':score', 'score', array(':score' => 1));
+      $db_query->distinct();
     }
 
     $filter = $query->getFilter();
@@ -1002,6 +1004,7 @@ class SearchApiDbService extends SearchApiAbstractService {
         $db_query->addField('t', 'item_id', 'item_id');
         if (!$neg) {
           $db_query->addExpression(':score', 'score', array(':score' => 1));
+          $distinct = TRUE;
         }
         if (isset($distinct)) {
           $db_query->distinct();
@@ -1055,6 +1058,11 @@ class SearchApiDbService extends SearchApiAbstractService {
   protected function createFilterCondition(SearchApiQueryFilterInterface $filter, array $fields, SelectQueryInterface $db_query) {
     $cond = db_condition($filter->getConjunction());
     $empty = TRUE;
+    // Store whether a JOIN alrady occurred for a field, so we don't JOIN
+    // repeatedly for OR filters.
+    $first_join = array();
+    // Store the table aliases for the fields in this condition group.
+    $tables = array();
     foreach ($filter->getFilters() as $f) {
       if (is_object($f)) {
         $c = $this->createFilterCondition($f, $fields, $db_query);
@@ -1093,8 +1101,14 @@ class SearchApiDbService extends SearchApiAbstractService {
           $cond->condition('t.item_id', $query, $f[2] == '<>' || $f[2] == '!=' ? 'NOT IN' : 'IN');
         }
         else {
-          $alias = $this->getTableAlias($field, $db_query, search_api_is_list_type($field['type']));
-          $cond->condition($alias . '.value', $f[1], $f[2]);
+          $new_join = search_api_is_list_type($field['type'])
+              && ($filter->getConjunction() == 'AND'
+                  || empty($first_join[$f[0]]));
+          if ($new_join || empty($tables[$f[0]])) {
+            $tables[$f[0]] = $this->getTableAlias($field, $db_query, $new_join);
+            $first_join[$f[0]] = TRUE;
+          }
+          $cond->condition($tables[$f[0]] . '.value', $f[1], $f[2]);
         }
       }
     }
@@ -1112,6 +1126,9 @@ class SearchApiDbService extends SearchApiAbstractService {
    * @param $newjoin
    *   If TRUE, a join is done even if the table was already joined to in the
    *   query.
+   *
+   * @return string
+   *   The alias for the field's table.
    */
   protected function getTableAlias(array $field, SelectQueryInterface $db_query, $newjoin = FALSE) {
     if(!$newjoin) {
