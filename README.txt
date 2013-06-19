@@ -31,11 +31,11 @@ Known problems
 --------------
 
 Currently, Drupal doesn't support setting the table collation when creating
-tables. This might cause problems when you are using MySQL (maybe also other
-databases) and want to index data which can contain accented characters,
-umlauts, etc. (à, á, ä, …).
+tables. This might cause problems when you want to index data which can contain
+accented characters, umlauts and other non-ASCII characters (à, á, ä, …).
 To resolve the issue, please set "utf8_bin" as the collation for all tables
-starting with "search_api_db_".
+starting with "search_api_db_". This has already been automated for MySQL
+databases in newer releases but must be done manually for other databases.
 See [1] for details.
 
 [1] http://drupal.org/node/1144620
