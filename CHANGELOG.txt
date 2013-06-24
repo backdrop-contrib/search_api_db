@@ -1,5 +1,7 @@
 Search API Database Search 1.x, dev (xx/xx/xxxx):
 -------------------------------------------------
+- #2020903 by drunken monkey: Fixed deletion of indexed data when a read-only
+  index is removed from the server.
 - #1863672 by drunken monkey, k.dani, bago: Fixed multiple content in the search
   result when using multiple terms for filtering.
 - #2012688 by drunken monkey: Fixed left-over data when executing two searches

@@ -316,12 +316,15 @@ class SearchApiDbService extends SearchApiAbstractService {
     if (!isset($this->options['indexes'][$id])) {
       return;
     }
-    $set = $this->setDb();
-    foreach ($this->options['indexes'][$id] as $field) {
-      db_drop_table($field['table']);
-    }
-    if ($set) {
-      $this->resetDb();
+    // Don't delete the index data of read-only indexes!
+    if (!is_object($index) || empty($index->read_only)) {
+      $set = $this->setDb();
+      foreach ($this->options['indexes'][$id] as $field) {
+        db_drop_table($field['table']);
+      }
+      if ($set) {
+        $this->resetDb();
+      }
     }
     unset($this->options['indexes'][$id]);
     $this->server->save();
