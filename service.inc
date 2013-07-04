@@ -10,6 +10,9 @@ class SearchApiDbService extends SearchApiAbstractService {
   protected $ignored = array();
   protected $warnings = array();
 
+  /**
+   * Overrides SearchApiAbstractService::configurationForm().
+   */
   public function configurationForm(array $form, array &$form_state) {
     // Discern between creation and editing of a server, since we don't allow
     // the database to be changed later on.
@@ -96,6 +99,9 @@ class SearchApiDbService extends SearchApiAbstractService {
     return $form;
   }
 
+  /**
+   * Overrides SearchApiAbstractService::supportsFeature().
+   */
   public function supportsFeature($feature) {
     $supported = drupal_map_assoc(array(
       'search_api_autocomplete',
@@ -104,10 +110,16 @@ class SearchApiDbService extends SearchApiAbstractService {
     return isset($supported[$feature]);
   }
 
+  /**
+   * Overrides SearchApiAbstractService::postUpdate().
+   */
   public function postUpdate() {
-    return $this->server->options != $this->server->original->options;
+    return !empty($this->server->original) && $this->server->options != $this->server->original->options;
   }
 
+  /**
+   * Overrides SearchApiAbstractService::preDelete().
+   */
   public function preDelete() {
     // Only react on real deletes, not on reverts.
     if ($this->server->hasStatus(ENTITY_IN_CODE)) {
@@ -123,31 +135,33 @@ class SearchApiDbService extends SearchApiAbstractService {
     }
   }
 
+  /**
+   * Overrides SearchApiAbstractService::addIndex().
+   */
   public function addIndex(SearchApiIndex $index) {
+    // If there are no fields, we can take a shortcut.
+    if (!isset($index->options['fields'])) {
+      if (!isset($this->options['indexes'][$index->machine_name])) {
+        $this->options['indexes'][$index->machine_name] = array();
+        $this->server->save();
+      }
+      elseif ($this->options['indexes'][$index->machine_name]) {
+        $this->removeIndex($index);
+        $this->options['indexes'][$index->machine_name] = array();
+        $this->server->save();
+      }
+      return;
+    }
     $this->options += array('indexes' => array());
-    $indexes = &$this->options['indexes'];
-    if (isset($indexes[$index->machine_name])) {
-      // Easiest and safest method to ensure all of the index' data is properly re-added.
-      $this->removeIndex($index);
-    }
-    if (empty($index->options['fields']) || !is_array($index->options['fields'])) {
-      // No fields, no work.
-      $indexes[$index->machine_name] = array();
-      $this->server->save();
-      return $this;
-    }
+    $this->options['indexes'] += array($index->machine_name => array());
 
-    $prefix = 'search_api_db_' . $index->machine_name. '_';
-    $indexes[$index->machine_name] = array();
-    foreach ($index->getFields() as $name => $field) {
-      $table = $this->findFreeTable($prefix, $name);
-      $this->createFieldTable($index, $field, $table);
-      $indexes[$index->machine_name][$name]['table'] = $table;
-      $indexes[$index->machine_name][$name]['type']  = $field['type'];
-      $indexes[$index->machine_name][$name]['boost'] = $field['boost'];
-    }
-
-    $this->server->save();
+    // If dealing with features or stale data or whatever, we might already have
+    // settings stored for this index. If we have, we should take care to only
+    // change what is needed, so we don't save the server (potentially setting
+    // it to "Overridden") unnecessarily.
+    // The easiest way to do this is by just pretending the index was already
+    // present, but its fields were updated.
+    $this->fieldsUpdated($index);
   }
 
   /**
@@ -275,17 +289,26 @@ class SearchApiDbService extends SearchApiAbstractService {
     }
   }
 
+  /**
+   * Overrides SearchApiAbstractService::fieldsUpdated().
+   *
+   * Internally, this is also used by addIndex().
+   */
   public function fieldsUpdated(SearchApiIndex $index) {
     $fields = &$this->options['indexes'][$index->machine_name];
     $new_fields = $index->getFields();
 
     $reindex = FALSE;
     $cleared = FALSE;
+    $change = FALSE;
+
     $set = $this->setDb();
+
     foreach ($fields as $name => $field) {
       if (!isset($new_fields[$name])) {
         db_drop_table($field['table']);
         unset($fields[$name]);
+        $change = TRUE;
         continue;
       }
       $old_type = $field['type'];
@@ -295,6 +318,7 @@ class SearchApiDbService extends SearchApiAbstractService {
       $old_inner_type = search_api_extract_inner_type($old_type);
       $new_inner_type = search_api_extract_inner_type($new_type);
       if ($old_type != $new_type) {
+        $change = TRUE;
         if ($old_inner_type == 'text' || $new_inner_type == 'text'
             || search_api_list_nesting_level($old_type) != search_api_list_nesting_level($new_type)) {
           // A change in fulltext or list status necessitates completely
@@ -317,14 +341,23 @@ class SearchApiDbService extends SearchApiAbstractService {
           $reindex = TRUE;
         }
       }
-      elseif (!$reindex && $new_inner_type == 'text' && $field['boost'] != $new_fields[$name]['boost']) {
-        $multiplier = $new_fields[$name]['boost'] / $field['boost'];
-        db_update($field['table'], $this->query_options)
-          ->expression('score', 'score * :mult', array(':mult' => $multiplier))
-          ->execute();
+      elseif ($field['boost'] != $new_fields[$name]['boost']) {
+        $change = TRUE;
+        if (!$reindex && $new_inner_type == 'text') {
+          $multiplier = $new_fields[$name]['boost'] / $field['boost'];
+          db_update($field['table'], $this->query_options)
+            ->expression('score', 'score * :mult', array(':mult' => $multiplier))
+            ->execute();
+        }
+      }
+      // Make sure the set table now exists. (Especially important when we
+      // actually add the index for the first time.)
+      if (!db_table_exists($field['table'])) {
+        $this->createFieldTable($index, $new_fields[$name], $field['table']);
       }
       unset($new_fields[$name]);
     }
+
     $prefix = 'search_api_db_' . $index->machine_name. '_';
     // These are new fields that were previously not indexed.
     foreach ($new_fields as $name => $field) {
@@ -334,15 +367,22 @@ class SearchApiDbService extends SearchApiAbstractService {
       $fields[$name]['table'] = $table;
       $fields[$name]['type']  = $field['type'];
       $fields[$name]['boost'] = $field['boost'];
+      $change = TRUE;
     }
+
     if ($set) {
       $this->resetDb();
     }
 
-    $this->server->save();
+    if ($change) {
+      $this->server->save();
+    }
     return $reindex;
   }
 
+  /**
+   * Overrides SearchApiAbstractService::removeIndex().
+   */
   public function removeIndex($index) {
     $id = is_object($index) ? $index->machine_name : $index;
     if (!isset($this->options['indexes'][$id])) {
@@ -362,6 +402,9 @@ class SearchApiDbService extends SearchApiAbstractService {
     $this->server->save();
   }
 
+  /**
+   * Implements SearchApiServiceInterface::indexItems().
+   */
   public function indexItems(SearchApiIndex $index, array $items) {
     if (empty($this->options['indexes'][$index->machine_name])) {
       throw new SearchApiException(t('No field settings for index with id @id.', array('@id' => $index->machine_name)));
@@ -610,6 +653,9 @@ class SearchApiDbService extends SearchApiAbstractService {
     }
   }
 
+  /**
+   * Implements SearchApiServiceInterface::deleteItems().
+   */
   public function deleteItems($ids = 'all', SearchApiIndex $index = NULL) {
     if (!$index) {
       if (empty($this->options['indexes'])) {
@@ -648,6 +694,9 @@ class SearchApiDbService extends SearchApiAbstractService {
     }
   }
 
+  /**
+   * Implements SearchApiServiceInterface::search().
+   */
   public function search(SearchApiQueryInterface $query) {
     $time_method_called = microtime(TRUE);
     $this->ignored = $this->warnings = array();
