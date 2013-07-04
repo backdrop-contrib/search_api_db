@@ -11,6 +11,8 @@ class SearchApiDbService extends SearchApiAbstractService {
   protected $warnings = array();
 
   public function configurationForm(array $form, array &$form_state) {
+    // Discern between creation and editing of a server, since we don't allow
+    // the database to be changed later on.
     if (empty($this->options)) {
       global $databases;
       foreach ($databases as $key => $targets) {
@@ -35,13 +37,6 @@ class SearchApiDbService extends SearchApiAbstractService {
           '#value' => "$key:$target",
         );
       }
-      $form['min_chars'] = array(
-        '#type' => 'select',
-        '#title' => t('Minimum word length'),
-        '#description' => t('The minimum number of characters a word must consist of to be indexed.'),
-        '#options' => drupal_map_assoc(array(1, 2, 3, 4, 5, 6)),
-        '#default_value' => 1,
-      );
     }
     else {
       $form = array(
@@ -55,13 +50,46 @@ class SearchApiDbService extends SearchApiAbstractService {
           '#title' => t('Database'),
           '#markup' => check_plain(str_replace(':', ' > ', $this->options['database'])),
         ),
-        'min_chars' => array(
-          '#type' => 'select',
-          '#title' => t('Minimum word length'),
-          '#description' => t('The minimum number of characters a word must consist of to be indexed.'),
-          '#options' => drupal_map_assoc(array(1, 2, 3, 4, 5, 6)),
-          '#default_value' => $this->options['min_chars'],
-        ),
+      );
+    }
+
+    // Set default settings.
+    $options = $this->options + array(
+      'min_chars' => 1,
+      'autocomplete' => array(),
+    );
+    $options['autocomplete'] += array(
+      'suggest_suffix' => TRUE,
+      'suggest_words' => TRUE,
+    );
+
+    $form['min_chars'] = array(
+      '#type' => 'select',
+      '#title' => t('Minimum word length'),
+      '#description' => t('The minimum number of characters a word must consist of to be indexed.'),
+      '#options' => drupal_map_assoc(array(1, 2, 3, 4, 5, 6)),
+      '#default_value' => $options['min_chars'],
+    );
+
+    if (module_exists('search_api_autocomplete')) {
+      $form['autocomplete'] = array(
+        '#type' => 'fieldset',
+        '#title' => t('Autocomplete settings'),
+        '#description' => t('These settings allow you to configure how suggestions are computed when autocompletion is used. If you are seeing many inappropriate suggestions you might want to deactivate the corresponding suggestion type. You can also deactivate one method to speed up the generation of suggestions.'),
+        '#collapsible' => TRUE,
+        '#collapsed' => TRUE,
+      );
+      $form['autocomplete']['suggest_suffix'] = array(
+        '#type' => 'checkbox',
+        '#title' => t('Suggest word endings'),
+        '#description' => t('Suggest endings for the currently entered word.'),
+        '#default_value' => $options['autocomplete']['suggest_suffix'],
+      );
+      $form['autocomplete']['suggest_words'] = array(
+        '#type' => 'checkbox',
+        '#title' => t('Suggest additional words'),
+        '#description' => t('Suggest additional words the user might want to search for.'),
+        '#default_value' => $options['autocomplete']['suggest_words'],
       );
     }
 
@@ -69,7 +97,11 @@ class SearchApiDbService extends SearchApiAbstractService {
   }
 
   public function supportsFeature($feature) {
-    return $feature == 'search_api_facets';
+    $supported = drupal_map_assoc(array(
+      'search_api_autocomplete',
+      'search_api_facets',
+    ));
+    return isset($supported[$feature]);
   }
 
   public function postUpdate() {
@@ -618,65 +650,15 @@ class SearchApiDbService extends SearchApiAbstractService {
 
   public function search(SearchApiQueryInterface $query) {
     $time_method_called = microtime(TRUE);
-    $set = $this->setDb();
     $this->ignored = $this->warnings = array();
     $index = $query->getIndex();
     if (empty($this->options['indexes'][$index->machine_name])) {
       throw new SearchApiException(t('Unknown index @id.', array('@id' => $index->machine_name)));
     }
+    $set = $this->setDb();
     $fields = $this->options['indexes'][$index->machine_name];
 
-    $keys = &$query->getKeys();
-    $keys_set = (boolean) $keys;
-    $keys = $this->prepareKeys($keys);
-    if ($keys && !(is_array($keys) && count($keys) == 1)) {
-      $fulltext_fields = $query->getFields();
-      if ($fulltext_fields) {
-        $_fulltext_fields = $fulltext_fields;
-        $fulltext_fields = array();
-        foreach ($_fulltext_fields as $name) {
-          if (!isset($fields[$name])) {
-            throw new SearchApiException(t('Unknown field @field specified as search target.', array('@field' => $name)));
-          }
-          if (!search_api_is_text_type($fields[$name]['type'])) {
-            throw new SearchApiException(t('Cannot perform fulltext search on field @field of type @type.', array('@field' => $name, '@type' => $fields[$name]['type'])));
-          }
-          $fulltext_fields[$name] = $fields[$name];
-        }
-
-        $db_query = $this->createKeysQuery($keys, $fulltext_fields, $fields);
-        if (is_array($keys) && !empty($keys['#negation'])) {
-          $db_query->addExpression(':score', 'score', array(':score' => 1));
-          $db_query->distinct();
-        }
-      }
-      else {
-        $msg = t('Search keys are given but no fulltext fields are defined.');
-        watchdog('search_api_db', $msg, NULL, WATCHDOG_WARNING);
-        $this->warnings[$msg] = 1;
-      }
-    }
-    elseif ($keys_set) {
-      $msg = t('No valid search keys were present in the query.');
-      $this->warnings[$msg] = 1;
-    }
-
-    if (!isset($db_query)) {
-      $db_query = db_select($fields['search_api_language']['table'], 't', $this->query_options);
-      $db_query->addField('t', 'item_id', 'item_id');
-      $db_query->addExpression(':score', 'score', array(':score' => 1));
-      $db_query->distinct();
-    }
-
-    $filter = $query->getFilter();
-    if ($filter->getFilters()) {
-      $condition = $this->createFilterCondition($filter, $fields, $db_query);
-      if ($condition) {
-        $db_query->condition($condition);
-      }
-    }
-
-    $db_query->addTag('search_api_db_search');
+    $db_query = $this->createDbQuery($query, $fields);
 
     $time_processing_done = microtime(TRUE);
     $results = array();
@@ -760,6 +742,83 @@ class SearchApiDbService extends SearchApiAbstractService {
     );
 
     return $results;
+  }
+
+  /**
+   * Helper method for creating a database query for a search.
+   *
+   * @param SearchApiQueryInterface $query
+   *   The search query for which to create the database query.
+   *
+   * @param array $fields
+   *   The internal field information to use.
+   *
+   * @return SelectQuery
+   *   A database query object which will return the appropriate results (except
+   *   for the range setting) for the given search query.
+   */
+  protected function createDbQuery(SearchApiQueryInterface $query, array $fields) {
+    $set = $this->setDb();
+
+    $keys = &$query->getKeys();
+    $keys_set = (boolean) $keys;
+    $keys = $this->prepareKeys($keys);
+    if ($keys && !(is_array($keys) && count($keys) == 1)) {
+      $fulltext_fields = $query->getFields();
+      if ($fulltext_fields) {
+        $_fulltext_fields = $fulltext_fields;
+        $fulltext_fields = array();
+        foreach ($_fulltext_fields as $name) {
+          if (!isset($fields[$name])) {
+            throw new SearchApiException(t('Unknown field @field specified as search target.', array('@field' => $name)));
+          }
+          if (!search_api_is_text_type($fields[$name]['type'])) {
+            $types = search_api_field_types();
+            $type = $types[$fields[$name]['type']];
+            throw new SearchApiException(t('Cannot perform fulltext search on field @field of type @type.', array('@field' => $name, '@type' => $type)));
+          }
+          $fulltext_fields[$name] = $fields[$name];
+        }
+
+        $db_query = $this->createKeysQuery($keys, $fulltext_fields, $fields);
+        if (is_array($keys) && !empty($keys['#negation'])) {
+          $db_query->addExpression(':score', 'score', array(':score' => 1));
+          $db_query->distinct();
+        }
+      }
+      else {
+        $msg = t('Search keys are given but no fulltext fields are defined.');
+        watchdog('search_api_db', $msg, NULL, WATCHDOG_WARNING);
+        $this->warnings[$msg] = 1;
+      }
+    }
+    elseif ($keys_set) {
+      $msg = t('No valid search keys were present in the query.');
+      $this->warnings[$msg] = 1;
+    }
+
+    if (!isset($db_query)) {
+      $db_query = db_select($fields['search_api_language']['table'], 't', $this->query_options);
+      $db_query->addField('t', 'item_id', 'item_id');
+      $db_query->addExpression(':score', 'score', array(':score' => 1));
+      $db_query->distinct();
+    }
+
+    $filter = $query->getFilter();
+    if ($filter->getFilters()) {
+      $condition = $this->createFilterCondition($filter, $fields, $db_query);
+      if ($condition) {
+        $db_query->condition($condition);
+      }
+    }
+
+    $db_query->addTag('search_api_db_search');
+
+    if ($set) {
+      $this->resetDb();
+    }
+
+    return $db_query;
   }
 
   /**
@@ -1147,24 +1206,20 @@ class SearchApiDbService extends SearchApiAbstractService {
 
   /**
    * Helper method for getting the facet values for a query.
+   *
+   * @param SearchApiQueryInterface $query
+   *   The search query for which facets should be computed.
+   * @param SelectQueryInterface $db_query
+   *   A database select query which returns all results of that search query.
+   *
+   * @return array
+   *   An array of facets, as specified by the search_api_facets feature.
    */
   protected function getFacets(SearchApiQueryInterface $query, SelectQueryInterface $db_query) {
-    // We only need the id field, not the score.
-    $fields = &$db_query->getFields();
-    unset($fields['score']);
-    if (count($fields) != 1 || !isset($fields['item_id'])) {
-      $this->warnings[] = t('Error while adding facets: only "item_id" field should be used, used are: @fields.',
-          array('@fields' => implode(', ', array_keys($fields))));
+    $table = $this->getTemporaryResultsTable($db_query);
+    if (!$table) {
       return array();
     }
-    $expressions = &$db_query->getExpressions();
-    $expressions = array();
-    $db_query->distinct();
-    if (!$db_query->preExecute()) {
-      return array();
-    }
-    $args = $db_query->getArguments();
-    $table = db_query_temporary((string) $db_query, $args, $this->query_options);
 
     $fields = $this->options['indexes'][$query->getIndex()->machine_name];
     $ret = array();
@@ -1231,6 +1286,158 @@ class SearchApiDbService extends SearchApiAbstractService {
       $ret[$key] = $terms;
     }
     return $ret;
+  }
+
+  /**
+   * Helper method for creating a temporary table from a SelectQuery.
+   *
+   * Will return the name of a table containing the item IDs of all results, or
+   * FALSE on failure.
+   *
+   * @param SelectQueryInterface $db_query
+   *   The select query whose results should be stored in the temporary table.
+   *
+   * @return string|false
+   *   The name of the temporary table, or FALSE on failure.
+   */
+  protected function getTemporaryResultsTable(SelectQueryInterface $db_query) {
+    // We only need the id field, not the score.
+    $fields = &$db_query->getFields();
+    unset($fields['score']);
+    if (count($fields) != 1 || !isset($fields['item_id'])) {
+      watchdog('search_api_db', 'Error while adding facets: only "item_id" field should be used, used are: @fields.',
+          array('@fields' => implode(', ', array_keys($fields))), WATCHDOG_WARNING);
+      return FALSE;
+    }
+    $expressions = &$db_query->getExpressions();
+    $expressions = array();
+    $db_query->distinct();
+    if (!$db_query->preExecute()) {
+      return FALSE;
+    }
+    $args = $db_query->getArguments();
+    return db_query_temporary((string) $db_query, $args, $this->query_options);
+  }
+
+  /**
+   * Implements SearchApiAutocompleteInterface::getAutocompleteSuggestions().
+   */
+  public function getAutocompleteSuggestions(SearchApiQueryInterface $query, SearchApiAutocompleteSearch $search, $incomplete_key, $user_input) {
+    $settings = isset($this->options['autocomplete']) ? $this->options['autocomplete'] : array();
+    $settings += array(
+      'suggest_suffix' => TRUE,
+      'suggest_words' => TRUE,
+    );
+    // If none of these options is checked, the user apparently chose a very
+    // roundabout way of telling us he doesn't want autocompletion.
+    if (!array_filter($settings)) {
+      return array();
+    }
+
+    $index = $query->getIndex();
+    if (empty($this->options['indexes'][$index->machine_name])) {
+      throw new SearchApiException(t('Unknown index @id.', array('@id' => $index->machine_name)));
+    }
+    $set = $this->setDb();
+    $fields = $this->options['indexes'][$index->machine_name];
+
+    $suggestions = array();
+    $passes = array();
+
+    // Decide which methods we want to use.
+    if ($incomplete_key && $settings['suggest_suffix']) {
+      $passes[] = 1;
+      $incomplete_like = db_like($incomplete_key) . '%';
+    }
+    if ($settings['suggest_words']
+        && (!$incomplete_key || strlen($incomplete_key) >= $this->options['min_chars'])) {
+      $passes[] = 2;
+    }
+
+    // We want about half of the suggestions from each enabled method.
+    $limit = $query->getOption('limit', 10);
+    $limit /= count($passes);
+
+    // Also collect all keywords already contained in the query so we don't
+    // suggest them.
+    $keys = drupal_map_assoc(preg_split('/[^\p{L}\p{N}]+/u', $user_input, -1, PREG_SPLIT_NO_EMPTY));
+    if ($incomplete_key) {
+      $keys[$incomplete_key] = $incomplete_key;
+    }
+
+    foreach ($passes as $pass) {
+      if ($pass == 2 && $incomplete_key) {
+        $query->keys($user_input);
+      }
+      $db_query = $this->createDbQuery($query, $fields);
+
+      // We need a list of all current results to match the suggestions against.
+      // However, since MySQL doesn't allow using a temporary table multiple
+      // times in one query, we regrettably have to do it this way.
+      if (count($query->getFields()) > 1) {
+        $all_results = $db_query->execute()->fetchCol();
+        // Compute the total number of results so we can later sort out matches
+        // that occur too often.
+        $total = count($all_results);
+      }
+      else {
+        $table = $this->getTemporaryResultsTable($db_query);
+        if (!$table) {
+          return;
+        }
+        $all_results = db_select($table, 't', $this->query_options)
+          ->fields('t', array('item_id'));
+        $total = db_query("SELECT COUNT(item_id) FROM {{$table}}")->fetchField();
+      }
+      $max_occurrences = max(1, floor($total * variable_get('search_api_db_autocomplete_max_occurrences', 0.9)));
+
+      if (!$total) {
+        if ($pass == 1) {
+          return;
+        }
+        continue;
+      }
+
+      foreach ($query->getFields() as $field) {
+        if (!isset($fields[$field]) || !search_api_is_text_type($fields[$field]['type'])) {
+          continue;
+        }
+        $field_query = db_select($fields[$field]['table'], 't', $this->query_options)
+          ->fields('t', array('word', 'item_id'))
+          ->condition('item_id', $all_results, 'IN');
+        if ($pass == 1) {
+          $field_query->condition('word', $incomplete_like, 'LIKE')
+            ->condition('word', $keys, 'NOT IN');
+        }
+        if (!isset($word_query)) {
+          $word_query = $field_query;
+        }
+        else {
+          $word_query->union($field_query);
+        }
+      }
+      $db_query = db_select($word_query, 't', $this->query_options);
+      $db_query->addExpression('COUNT(DISTINCT item_id)', 'results');
+      $db_query->fields('t', array('word'))
+        ->groupBy('word')
+        ->having('results <= :max', array(':max' => $max_occurrences))
+        ->orderBy('results', 'DESC')
+        ->range(0, ceil($limit));
+      $incomp_len = strlen($incomplete_key);
+      foreach ($db_query->execute() as $row) {
+        $suffix = ($pass == 1) ? substr($row->word, $incomp_len) : ' ' . $row->word;
+        $suggestions[] = array(
+          'suggestion_suffix' => $suffix,
+          'results' => $row->results,
+        );
+      }
+    }
+
+    if ($set) {
+      $this->resetDb();
+    }
+
+    return $suggestions;
   }
 
   /**
