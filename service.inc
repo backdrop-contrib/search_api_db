@@ -254,7 +254,7 @@ class SearchApiDbService extends SearchApiAbstractService {
 
     switch ($db_driver) {
       case 'mysql':
-        db_query("ALTER TABLE {{$name}} CONVERT TO CHARACTER SET 'utf8' COLLATE 'utf8_bin'")->execute();
+        db_query("ALTER TABLE {{$name}} CONVERT TO CHARACTER SET 'utf8' COLLATE 'utf8_bin'");
         break;
       // @todo Add fixes for other DBMSs.
       case 'oracle':
