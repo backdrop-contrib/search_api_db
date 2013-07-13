@@ -1,4 +1,3 @@
-
 name = Database search
 description = "Offers an implementation of the Search API that uses database tables for indexing content."
 dependencies[] = search_api
