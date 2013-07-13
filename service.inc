@@ -887,7 +887,7 @@ class SearchApiDbService extends SearchApiAbstractService {
     foreach ($keys as $i => &$nested) {
       if (is_array($nested)) {
         $nested = $this->prepareKeys($nested);
-        if ($neg == !empty($nested['#negation'])) {
+        if (is_array($nested) && $neg == !empty($nested['#negation'])) {
           if ($nested['#conjunction'] == $conj) {
             unset($nested['#conjunction'], $nested['#negation']);
             foreach ($nested as $renested) {

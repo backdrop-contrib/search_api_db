@@ -1,5 +1,6 @@
 Search API Database Search 1.x, dev (xx/xx/xxxx):
 -------------------------------------------------
+- #2035017 by drunken monkey: Fixed notices for PHP 5.4+.
 - #2026883 by drunken monkey: Fixed workflow for adding a server with indexes
   in a feature.
 - #1836992 by drunken monkey: Added autocomplete support.
