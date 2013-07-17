@@ -862,6 +862,8 @@ class SearchApiDbService extends SearchApiAbstractService {
     }
 
     $db_query->addTag('search_api_db_search');
+    $db_query->addMetaData('search_api_query', $query);
+    $db_query->addMetaData('search_api_db_fields', $fields);
 
     if ($set) {
       $this->resetDb();

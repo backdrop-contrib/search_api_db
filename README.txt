@@ -47,6 +47,15 @@ See [1] for details.
 
 [1] http://drupal.org/node/1144620
 
+Developer information
+---------------------
+
+Database queries for searches with this module are tagged with
+"search_api_db_search" to allow easy altering. As metadata, such database
+queries will have the Search API query object set as "search_api_query", and the
+field settings of the server for the corresponding search index as
+"search_api_db_fields".
+
 Hidden variables
 ----------------
 
