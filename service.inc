@@ -1236,14 +1236,17 @@ class SearchApiDbService extends SearchApiAbstractService {
    *   name to which a join should be made.
    * @param SelectQueryInterface $db_query
    *   The database query used.
-   * @param $newjoin
-   *   If TRUE, a join is done even if the table was already joined to in the
-   *   query.
+   * @param bool $newjoin
+   *   (optional) If TRUE, a join is done even if the table was already joined
+   *   to in the query.
+   * @param string $join
+   *   (optional) The join method to use. Must be a method of the $db_query.
+   *   Normally, "join", "innerJoin", "leftJoin" and "rightJoin" are supported.
    *
    * @return string
    *   The alias for the field's table.
    */
-  protected function getTableAlias(array $field, SelectQueryInterface $db_query, $newjoin = FALSE) {
+  protected function getTableAlias(array $field, SelectQueryInterface $db_query, $newjoin = FALSE, $join = 'leftJoin') {
     if(!$newjoin) {
       foreach ($db_query->getTables() as $alias => $info) {
         $table = $info['table'];
@@ -1252,7 +1255,7 @@ class SearchApiDbService extends SearchApiAbstractService {
         }
       }
     }
-    return $db_query->leftJoin($field['table'], 't', 't.item_id = %alias.item_id');
+    return $db_query->$join($field['table'], 't', 't.item_id = %alias.item_id');
   }
 
   /**
@@ -1283,7 +1286,7 @@ class SearchApiDbService extends SearchApiAbstractService {
       $missing_count = 0;
 
       $select = db_select($table, 't');
-      $alias = $this->getTableAlias($field, $select, TRUE);
+      $alias = $this->getTableAlias($field, $select, TRUE, $facet['missing'] ? 'leftJoin' : 'innerJoin');
       $select->addField($alias, search_api_is_text_type($field['type']) ? 'word' : 'value', 'value');
       $select->addExpression('COUNT(DISTINCT t.item_id)', 'num');
       $select->groupBy('value');
@@ -1296,42 +1299,12 @@ class SearchApiDbService extends SearchApiAbstractService {
       if ($facet['min_count'] > 1) {
         $select->having('num >= :count', array(':count' => $facet['min_count']));
       }
-      if ($facet['missing']) {
-        // The "missing" facet is defined by the table not having any entries
-        // for those items. We therefore need to execute an additional query,
-        // counting the items which do not have any entries in the field table.
-        if ($facet['missing']) {
-          $inner_query = db_select($field['table'], 't1')
-            ->fields('t1', array('item_id'));
-          $missing_count = db_select($table, 't');
-          $missing_count->addExpression('COUNT(item_id)');
-          $missing_count->condition('item_id', $inner_query, 'NOT IN');
-          $missing_count = $missing_count->execute()->fetchField();
-          $missing_count = $missing_count >= $facet['min_count'] ? $missing_count : 0;
-        }
-      }
 
       $terms = array();
       foreach ($select->execute() as $row) {
-        if ($missing_count && $missing_count > $row->num) {
-          $terms[] = array(
-            'count'  => $missing_count,
-            'filter' => '!',
-          );
-          $missing_count = 0;
-          if ($limit && count($terms) == $limit) {
-            break;
-          }
-        }
         $terms[] = array(
           'count' => $row->num,
           'filter' => isset($row->value) ? '"' . $row->value . '"' : '!',
-        );
-      }
-      if ($missing_count && (!$limit || count($terms) < $limit)) {
-        $terms[] = array(
-          'count'  => $missing_count,
-          'filter' => '!',
         );
       }
       $ret[$key] = $terms;

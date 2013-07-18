@@ -29,7 +29,7 @@ class SearchApiDbTest extends DrupalWebTestCase {
     return array(
       'name' => 'Test "Database search" module',
       'description' => 'Tests indexing and searching with the "Database search" module.',
-      'group' => 'Search API',
+      'group' => 'Search API Database Search',
     );
   }
 
@@ -410,6 +410,37 @@ class SearchApiDbTest extends DrupalWebTestCase {
     $this->assertEqual(array_keys($results['results']), array(2, 4, 5), 'Complex nested filters on multi-valued field returned correct result.');
     $this->assertEqual($results['ignored'], array(), 'No keys were ignored.');
     $this->assertEqual($results['warnings'], array(), 'No warnings were displayed.');
+
+    // Regression tests for #2040543.
+    $query = $this->buildSearch();
+    $facets['type'] = array(
+      'field' => 'type',
+      'limit' => 0,
+      'min_count' => 1,
+      'missing' => TRUE,
+    );
+    $query->setOption('search_api_facets', $facets);
+    $query->range(0, 0);
+    $results = $query->execute();
+    $expected = array(
+      array('count' => 2, 'filter' => '"article"'),
+      array('count' => 2, 'filter' => '"item"'),
+      array('count' => 1, 'filter' => '!'),
+    );
+    $facet_match = _search_api_settings_equals($results['search_api_facets']['type'], $expected);
+    $this->assertTrue($facet_match, 'Correct facets were returned');
+
+    $query = $this->buildSearch();
+    $facets['type']['missing'] = FALSE;
+    $query->setOption('search_api_facets', $facets);
+    $query->range(0, 0);
+    $results = $query->execute();
+    $expected = array(
+      array('count' => 2, 'filter' => '"article"'),
+      array('count' => 2, 'filter' => '"item"'),
+    );
+    $facet_match = _search_api_settings_equals($results['search_api_facets']['type'], $expected);
+    $this->assertTrue($facet_match, 'Correct facets were returned');
   }
 
   protected function clearIndex() {
