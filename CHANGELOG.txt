@@ -1,5 +1,8 @@
 Search API Database Search 1.x, dev (xx/xx/xxxx):
 -------------------------------------------------
+
+Search API Database Search 1.0, RC 2 (07/21/2013):
+--------------------------------------------------
 - #2040543 by drunken monkey: Fixed ignored "missing facet" setting.
 - #1809902 by drunken monkey: Added metadata to database queries.
 - #2035017 by drunken monkey: Fixed notices for PHP 5.4+.
