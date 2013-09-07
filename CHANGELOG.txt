@@ -1,5 +1,7 @@
 Search API Database Search 1.x, dev (xx/xx/xxxx):
 -------------------------------------------------
+- #2073443 by drunken monkey: Removed custom uninstall code for deleting
+  dependent servers.
 
 Search API Database Search 1.0, RC 2 (07/21/2013):
 --------------------------------------------------
