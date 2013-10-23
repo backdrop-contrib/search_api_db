@@ -1,5 +1,8 @@
 Search API Database Search 1.x, dev (xx/xx/xxxx):
 -------------------------------------------------
+
+Search API Database Search 1.0 (10/23/2013):
+--------------------------------------------
 - #1155568 by bember, drunken monkey, fabsor: Fixed indexing of historical date
   fields.
 - #2083079 by drumm, drunken monkey: Added single, denormalized table for
