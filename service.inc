@@ -349,8 +349,9 @@ class SearchApiDbService extends SearchApiAbstractService {
         return array('type' => 'varchar', 'length' => 255);
       case 'integer':
       case 'duration':
-      case 'date': // 'datetime' sucks. This way, we just convert every input into a timestamp.
-        return array('type' => 'int');
+      case 'date':
+        // 'datetime' sucks. Therefore, we just store the timestamp.
+        return array('type' => 'int', 'size' => 'big');
       case 'decimal':
         return array('type' => 'float');
       case 'boolean':
@@ -682,6 +683,10 @@ class SearchApiDbService extends SearchApiAbstractService {
     }
     switch ($type) {
       case 'text':
+        // For dates, splitting the timestamp makes no sense.
+        if ($original_type == 'date') {
+          $value = format_date($value, 'custom', 'Y y F M n m j d l D');
+        }
         $ret = array();
         foreach (preg_split('/[^\p{L}\p{N}]+/u', $value, -1, PREG_SPLIT_NO_EMPTY) as $v) {
           if ($v) {
@@ -739,9 +744,9 @@ class SearchApiDbService extends SearchApiAbstractService {
 
       case 'string':
       case 'uri':
-        // For non-dates, PHP can handle this well enough
+        // For non-dates, PHP can handle this well enough.
         if ($original_type == 'date') {
-          return date('%c', $value);
+          return date('c', $value);
         }
         if (strlen($value) > 255) {
           $value = mb_strcut($value, 0, 255);

@@ -81,3 +81,30 @@ function search_api_db_update_7102() {
     }
   }
 }
+
+/**
+ * Changes date fields from int to big int.
+ *
+ * The purpose is give support to historical dates.
+ */
+function search_api_db_update_7103() {
+  $server_options = db_select('search_api_server', 's')
+    ->fields('s', array('options'))
+    ->condition('class', 'search_api_db_service')
+    ->execute()
+    ->fetchCol();
+  $spec = array('type' => 'int', 'size' => 'big');
+  foreach ($server_options as $options) {
+    $options = unserialize($options);
+    if (!empty($options['indexes'])) {
+      foreach ($options['indexes'] as $fields) {
+        foreach ($fields as $field) {
+          if ($field['type'] == 'date') {
+            $column = !empty($field['column']) ? $field['column'] : 'value';
+            db_change_field($field['table'], $column, $column, $spec);
+          }
+        }
+      }
+    }
+  }
+}
