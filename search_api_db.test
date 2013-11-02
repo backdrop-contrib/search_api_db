@@ -45,9 +45,9 @@ class SearchApiDbTest extends DrupalWebTestCase {
     $this->searchNoResults();
     $this->indexItems();
     $this->searchSuccess1();
+    $this->regressionTests();
     $this->editServer();
     $this->searchSuccess2();
-    $this->regressionTests();
     $this->clearIndex();
     $this->searchNoResults();
   }
@@ -441,6 +441,67 @@ class SearchApiDbTest extends DrupalWebTestCase {
     );
     $facet_match = _search_api_settings_equals($results['search_api_facets']['type'], $expected);
     $this->assertTrue($facet_match, 'Correct facets were returned');
+
+    // Regression tests for #2111753.
+    $keys = array(
+      '#conjunction' => 'OR',
+      'foo',
+      'test',
+    );
+    $query = $this->buildSearch($keys, array(), array('title'));
+    $query->sort('id', 'ASC');
+    $results = $query->execute();
+    $this->assertEqual($results['result count'], 3, 'OR keywords returned correct number of results.');
+    $this->assertEqual(array_keys($results['results']), array(1, 2, 4), 'OR keywords returned correct result.');
+    $this->assertEqual($results['ignored'], array(), 'No keys were ignored.');
+    $this->assertEqual($results['warnings'], array(), 'No warnings were displayed.');
+
+    $query = $this->buildSearch($keys, array(), array('title', 'body'));
+    $query->range(0, 0);
+    $results = $query->execute();
+    $this->assertEqual($results['result count'], 5, 'Multi-field OR keywords returned correct number of results.');
+    $this->assertTrue(empty($results['results']), 'Multi-field OR keywords returned correct result.');
+    $this->assertEqual($results['ignored'], array(), 'No keys were ignored.');
+    $this->assertEqual($results['warnings'], array(), 'No warnings were displayed.');
+
+    $keys = array(
+      '#conjunction' => 'OR',
+      'foo',
+      'test',
+      array(
+        '#conjunction' => 'AND',
+        'bar',
+        'baz',
+      ),
+    );
+    $query = $this->buildSearch($keys, array(), array('title'));
+    $query->sort('id', 'ASC');
+    $results = $query->execute();
+    $this->assertEqual($results['result count'], 4, 'Nested OR keywords returned correct number of results.');
+    $this->assertEqual(array_keys($results['results']), array(1, 2, 4, 5), 'Nested OR keywords returned correct result.');
+    $this->assertEqual($results['ignored'], array(), 'No keys were ignored.');
+    $this->assertEqual($results['warnings'], array(), 'No warnings were displayed.');
+
+    $keys = array(
+      '#conjunction' => 'OR',
+      array(
+        '#conjunction' => 'AND',
+        'foo',
+        'test',
+      ),
+      array(
+        '#conjunction' => 'AND',
+        'bar',
+        'baz',
+      ),
+    );
+    $query = $this->buildSearch($keys, array(), array('title', 'body'));
+    $query->sort('id', 'ASC');
+    $results = $query->execute();
+    $this->assertEqual($results['result count'], 4, 'Nested multi-field OR keywords returned correct number of results.');
+    $this->assertEqual(array_keys($results['results']), array(1, 2, 4, 5), 'Nested multi-field OR keywords returned correct result.');
+    $this->assertEqual($results['ignored'], array(), 'No keys were ignored.');
+    $this->assertEqual($results['warnings'], array(), 'No warnings were displayed.');
   }
 
   protected function clearIndex() {
