@@ -1210,7 +1210,7 @@ class SearchApiDbService extends SearchApiAbstractService {
           $db_query->having('COUNT(DISTINCT t.word) >= ' . $var, array($var => $subs));
         }
         else {
-          $db_query->having('COUNT(DISTINCT t.word) >= ' . $var, array($var => $subs));
+          $db_query->having('COUNT(t.word) >= ' . $var, array($var => $subs));
         }
       }
     }
