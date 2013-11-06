@@ -50,6 +50,7 @@ class SearchApiDbTest extends DrupalWebTestCase {
     $this->searchSuccess2();
     $this->clearIndex();
     $this->searchNoResults();
+    $this->regressionTests2();
   }
 
   protected function insertItems() {
@@ -126,7 +127,8 @@ class SearchApiDbTest extends DrupalWebTestCase {
       'enabled' => 1,
       'description' => 'An index used for testing.',
       'server' => $this->server_id,
-      'options[cron_limit]' => 5,
+      'options[cron_limit]' => -1,
+      'options[index_directly]' => TRUE,
     );
     $this->drupalPost('admin/config/search/search_api/add_index', $values, t('Create index'));
 
@@ -508,6 +510,44 @@ class SearchApiDbTest extends DrupalWebTestCase {
     $this->drupalPost("admin/config/search/search_api/index/{$this->index_id}/status", array(), t('Clear index'));
     $this->assertText(t('The index was successfully cleared.'));
     $this->assertText(t('All items still need to be indexed (@total total).', array('@total' => 5)), 'Correct index status displayed.');
+  }
+
+  /**
+   * Executes regression tests which are unpractical to run in between.
+   */
+  protected function regressionTests2() {
+    // Regression test for #1916474.
+    $values = array(
+      'fields[prices][type]' => 'list<decimal>',
+      'fields[prices][boost]' => '1.0',
+      'fields[prices][indexed]' => 1,
+    );
+    $this->drupalPost("admin/config/search/search_api/index/{$this->index_id}/fields", $values, t('Save changes'));
+    $this->assertText(t('The indexed fields were successfully changed. The index was cleared and will have to be re-indexed with the new settings.'), 'Field settings saved.');
+
+    // Reset the internal cache so the new values will be available.
+    search_api_server_load($this->server_id, TRUE);
+    search_api_index_load($this->index_id, TRUE);
+
+    $this->indexItems();
+
+    $this->drupalGet('search_api_test/insert');
+    $this->insertItem(array(
+      'id' => 6,
+      'prices' => '3.5,3.25,3.75,3.5',
+    ));
+
+    $query = $this->buildSearch(NULL, array('prices,3.25'));
+    $results = $query->execute();
+    $this->assertEqual($results['result count'], 1, 'Filter on decimal field returned correct number of results.');
+    $this->assertEqual(array_keys($results['results']), array(6), 'Filter on decimal field returned correct result.');
+    $this->assertEqual($results['warnings'], array(), 'No warnings were displayed.');
+
+    $query = $this->buildSearch(NULL, array('prices,3.5'));
+    $results = $query->execute();
+    $this->assertEqual($results['result count'], 1, 'Filter on decimal field returned correct number of results.');
+    $this->assertEqual(array_keys($results['results']), array(6), 'Filter on decimal field returned correct result.');
+    $this->assertEqual($results['warnings'], array(), 'No warnings were displayed.');
   }
 
 }

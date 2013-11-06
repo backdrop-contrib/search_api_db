@@ -622,7 +622,7 @@ class SearchApiDbService extends SearchApiAbstractService {
           if (is_array($value)) {
             foreach ($value as $v) {
               if ($v !== NULL) {
-                $values[$v] = TRUE;
+                $values["$v"] = TRUE;
               }
             }
             $values = array_keys($values);

@@ -1,5 +1,6 @@
 Search API Database Search 1.x, dev (xx/xx/xxxx):
 -------------------------------------------------
+- #1916474 by drunken monkey: Fixed indexing of multi-valued float fields.
 - #2111753 by drunken monkey: Added additional tests for ORed fulltext keywords.
 
 Search API Database Search 1.0 (10/23/2013):
