@@ -501,6 +501,47 @@ class SearchApiDbTest extends DrupalWebTestCase {
     $this->assertEqual(array_keys($results['results']), array(1, 2, 4, 5), 'Nested multi-field OR keywords returned correct result.');
     $this->assertEqual($results['ignored'], array(), 'No keys were ignored.');
     $this->assertEqual($results['warnings'], array(), 'No warnings were displayed.');
+
+    // Regression tests for #2127001.
+    $keys = array(
+      '#conjunction' => 'AND',
+      '#negation' => TRUE,
+      'foo',
+      'bar',
+    );
+    $results = $this->buildSearch($keys)->sort('search_api_id', 'ASC')->execute();
+    $this->assertEqual($results['result count'], 2, 'Negated AND fulltext search returned correct number of results.');
+    $this->assertEqual(array_keys($results['results']), array(3, 4), 'Negated AND fulltext search returned correct result.');
+    $this->assertEqual($results['ignored'], array(), 'No keys were ignored.');
+    $this->assertEqual($results['warnings'], array(), 'No warnings were displayed.');
+
+    $keys = array(
+      '#conjunction' => 'OR',
+      '#negation' => TRUE,
+      'foo',
+      'baz',
+    );
+    $results = $this->buildSearch($keys)->execute();
+    $this->assertEqual($results['result count'], 1, 'Negated OR fulltext search returned correct number of results.');
+    $this->assertEqual(array_keys($results['results']), array(3), 'Negated OR fulltext search returned correct result.');
+    $this->assertEqual($results['ignored'], array(), 'No keys were ignored.');
+    $this->assertEqual($results['warnings'], array(), 'No warnings were displayed.');
+
+    $keys = array(
+      '#conjunction' => 'AND',
+      'test',
+      array(
+        '#conjunction' => 'AND',
+        '#negation' => TRUE,
+        'foo',
+        'bar',
+      ),
+    );
+    $results = $this->buildSearch($keys)->sort('search_api_id', 'ASC')->execute();
+    $this->assertEqual($results['result count'], 2, 'Nested NOT AND fulltext search returned correct number of results.');
+    $this->assertEqual(array_keys($results['results']), array(3, 4), 'Nested NOT AND fulltext search returned correct result.');
+    $this->assertEqual($results['ignored'], array(), 'No keys were ignored.');
+    $this->assertEqual($results['warnings'], array(), 'No warnings were displayed.');
   }
 
   protected function clearIndex() {

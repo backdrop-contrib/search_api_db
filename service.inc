@@ -927,6 +927,9 @@ class SearchApiDbService extends SearchApiAbstractService {
    * @return SelectQuery
    *   A database query object which will return the appropriate results (except
    *   for the range setting) for the given search query.
+   *
+   * @throws SearchApiException
+   *   If some illegal query setting (unknown field, etc.) was encountered.
    */
   protected function createDbQuery(SearchApiQueryInterface $query, array $fields) {
     $set = $this->setDb();
@@ -934,7 +937,17 @@ class SearchApiDbService extends SearchApiAbstractService {
     $keys = &$query->getKeys();
     $keys_set = (boolean) $keys;
     $keys = $this->prepareKeys($keys);
-    if ($keys && !(is_array($keys) && count($keys) == 1)) {
+    // Special case: if the outermost $keys array has "#negation" set, we can't
+    // handle it like other negated subkeys. To avoid additional complexity
+    // later, we just wrap $keys so it becomes a subkey.
+    if (!empty($keys['#negation'])) {
+      $keys = array(
+        '#conjunction' => 'AND',
+        $keys,
+      );
+    }
+    // Only filter by fulltext keys if there are any real keys present.
+    if ($keys && (!is_array($keys) || count($keys) > 2 || (!isset($keys['#negation']) && count($keys) > 1))) {
       $fulltext_fields = $query->getFields();
       if ($fulltext_fields) {
         $_fulltext_fields = $fulltext_fields;
@@ -1029,7 +1042,7 @@ class SearchApiDbService extends SearchApiAbstractService {
       }
       else {
         unset($keys['#conjunction']);
-        $keys = array_shift($keys);
+        $keys = reset($keys);
       }
     }
     return $keys;
@@ -1089,6 +1102,16 @@ class SearchApiDbService extends SearchApiAbstractService {
   /**
    * Helper method for creating a SELECT query for given search keys.
    *
+   * @param $keys
+   *   The search keys, formatted like the return value of
+   *   SearchApiQueryInterface::getKeys(), but preprocessed according to
+   *   internal requirements.
+   * @param array $fields
+   *   The fulltext fields on which to search, with their names as keys mapped
+   *   to internal information about them.
+   * @param array $all_fields
+   *   Internal information about all indexed fields on the index.
+   *
    * @return SelectQueryInterface
    *   A SELECT query returning item_id and score (or only item_id, if
    *   $keys['#negation'] is set).
@@ -1109,7 +1132,7 @@ class SearchApiDbService extends SearchApiAbstractService {
     $negated = array();
     $db_query = NULL;
     $mul_words = FALSE;
-    $not_nested = FALSE;
+    $neg_nested = $neg && $conj == 'AND';
 
     foreach ($keys as $i => $key) {
       if (!element_child($i)) {
@@ -1146,7 +1169,10 @@ class SearchApiDbService extends SearchApiAbstractService {
       foreach ($fields as $name => $field) {
         $table = $field['table'];
         $query = db_select($table, 't', $this->query_options);
-        if ($neg) {
+        if ($neg_nested) {
+          $query->fields('t', array('item_id', 'word'));
+        }
+        elseif ($neg) {
           $query->fields('t', array('item_id'));
         }
         elseif ($not_nested) {
@@ -1161,6 +1187,7 @@ class SearchApiDbService extends SearchApiAbstractService {
         else {
           $query->condition('word', $word);
         }
+
         if (!isset($db_query)) {
           $db_query = $query;
         }
@@ -1261,6 +1288,10 @@ class SearchApiDbService extends SearchApiAbstractService {
         }
         $db_query->condition($or);
       }
+    }
+
+    if ($neg_nested) {
+      $db_query = db_select($db_query, 't')->fields('t', array('item_id'));
     }
 
     return $db_query;

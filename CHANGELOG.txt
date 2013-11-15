@@ -1,5 +1,6 @@
 Search API Database Search 1.x, dev (xx/xx/xxxx):
 -------------------------------------------------
+- #2127001 by drunken monkey: Fixed negated fulltext searches.
 - #2134667 by drunken monkey: Fixed tests to not depend on the Search API UI.
 - #1916474 by drunken monkey: Fixed indexing of multi-valued float fields.
 - #2111753 by drunken monkey: Added additional tests for ORed fulltext keywords.
