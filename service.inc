@@ -833,10 +833,14 @@ class SearchApiDbService extends SearchApiAbstractService {
 
     $time_processing_done = microtime(TRUE);
     $results = array();
-    $count_query = $db_query->countQuery();
-    $results['result count'] = $count_query->execute()->fetchField();
 
-    if ($results['result count']) {
+    $skip_count = $query->getOption('skip result count');
+    if (!$skip_count) {
+      $count_query = $db_query->countQuery();
+      $results['result count'] = $count_query->execute()->fetchField();
+    }
+
+    if ($skip_count || $results['result count']) {
       if ($query->getOption('search_api_facets')) {
         $results['search_api_facets'] = $this->getFacets($query, clone $db_query);
       }
@@ -890,6 +894,9 @@ class SearchApiDbService extends SearchApiAbstractService {
           'id' => $row->item_id,
           'score' => $row->score,
         );
+      }
+      if ($skip_count) {
+        $results['result count'] = (bool) $results['results'];
       }
     }
     else {
