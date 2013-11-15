@@ -99,70 +99,72 @@ class SearchApiDbTest extends DrupalWebTestCase {
 
   protected function createServer() {
     $this->server_id = 'database_search_server';
+    global $databases;
+    $database = 'default:default';
+    // Make sure to pick an available connection and to not rely on any
+    // defaults.
+    foreach ($databases as $key => $targets) {
+      foreach ($targets as $target => $info) {
+        $database = "$key:$target";
+        break;
+      }
+    }
     $values = array(
       'name' => 'Database search server',
       'machine_name' => $this->server_id,
       'enabled' => 1,
       'description' => 'A server used for testing.',
       'class' => 'search_api_db_service',
+      'options' => array(
+        'min_chars' => 3,
+        'database' => $database,
+      ),
     );
-    $this->drupalPost('admin/config/search/search_api/add_server', $values, t('Create server'));
-
-    $values2 = array(
-      'options[form][min_chars]' => 3,
-    );
-    $this->drupalPost(NULL, $values2, t('Create server'));
-
-    $this->assertText(t('The server was successfully created.'));
-    $found = strpos($this->getUrl(), 'admin/config/search/search_api/server/' . $this->server_id) !== FALSE;
-    $this->assertTrue($found, 'Correct redirect.');
+    $success = (bool) entity_create('search_api_server', $values)->save();
+    $this->assertTrue($success, 'The server was successfully created.');
   }
 
   protected function createIndex() {
-    $this->index_id = $id = 'test_index';
+    $this->index_id = 'test_index';
     $values = array(
       'name' => 'Test index',
-      'machine_name' => 'test_index',
+      'machine_name' => $this->index_id,
       'item_type' => 'search_api_test',
       'enabled' => 1,
       'description' => 'An index used for testing.',
       'server' => $this->server_id,
-      'options[cron_limit]' => -1,
-      'options[index_directly]' => TRUE,
+      'options' => array(
+        'cron_limit' => -1,
+        'index_directly' => TRUE,
+        'fields' => array(
+          'id' => array(
+            'type' => 'integer',
+          ),
+          'title' => array(
+            'type' => 'text',
+            'boost' => '5.0',
+          ),
+          'body' => array(
+            'type' => 'text',
+          ),
+          'type' => array(
+            'type' => 'string',
+          ),
+          'keywords' => array(
+            'type' => 'list<string>',
+          ),
+          'search_api_language' => array(
+            'type' => 'string',
+          ),
+        ),
+      ),
     );
-    $this->drupalPost('admin/config/search/search_api/add_index', $values, t('Create index'));
-
-    $this->assertText(t('The index was successfully created. Please set up its indexed fields now.'), 'The index was successfully created.');
-    $found = strpos($this->getUrl(), 'admin/config/search/search_api/index/' . $id) !== FALSE;
-    $this->assertTrue($found, 'Correct redirect.');
-
-    $values = array(
-      'fields[id][type]' => 'integer',
-      'fields[id][boost]' => '1.0',
-      'fields[id][indexed]' => 1,
-      'fields[title][type]' => 'text',
-      'fields[title][boost]' => '5.0',
-      'fields[title][indexed]' => 1,
-      'fields[body][type]' => 'text',
-      'fields[body][boost]' => '1.0',
-      'fields[body][indexed]' => 1,
-      'fields[type][type]' => 'string',
-      'fields[type][boost]' => '1.0',
-      'fields[type][indexed]' => 1,
-      'fields[keywords][type]' => 'list<string>',
-      'fields[keywords][boost]' => '1.0',
-      'fields[keywords][indexed]' => 1,
-    );
-
-    $this->drupalPost(NULL, $values, t('Save changes'));
-    $this->assertText(t('The indexed fields were successfully changed. The index was cleared and will have to be re-indexed with the new settings.'), 'Field settings saved.');
-
-    $this->drupalPost(NULL, array(), t('Save configuration'));
-    $this->assertText(t("The search index' workflow was successfully edited. All content was scheduled for re-indexing so the new settings can take effect."), 'Workflow successfully edited.');
-
-    $this->drupalGet("admin/config/search/search_api/index/$id/status");
-    $this->assertText(t('The index is currently enabled.'), '"Enabled" status displayed.');
-    $this->assertText(t('All items still need to be indexed (@total total).', array('@total' => 5)), 'Correct index status displayed.');
+    $index = entity_create('search_api_index', $values);
+    $success = (bool) $index->save();
+    $this->assertTrue($success, 'The index was successfully created.');
+    $status = search_api_index_status($index);
+    $this->assertEqual($status['total'], 5, 'Correct item count.');
+    $this->assertEqual($status['indexed'], 0, 'All items still need to be indexed.');
   }
 
   protected function buildSearch($keys = NULL, array $filters = array(), array $fields = array()) {
@@ -191,11 +193,7 @@ class SearchApiDbTest extends DrupalWebTestCase {
   }
 
   protected function indexItems() {
-    $this->drupalPost("admin/config/search/search_api/index/{$this->index_id}/status", array(), t('Index now'));
-    $this->assertText(t('Successfully indexed @count items.', array('@count' => 5)));
-    $this->assertNoText(t("Some items couldn't be indexed. Check the logs for details."), 'Index errors warning isn\'t displayed.');
-    $this->assertNoText(t("Couldn't index items. Check the logs for details."), 'Index error isn\'t displayed.');
-    $this->assertText(t('All items have been indexed (@total / @total).', array('@total' => 5)), 'Correct index status displayed.');
+    search_api_index_items(search_api_index_load($this->index_id));
   }
 
   protected function searchSuccess1() {
@@ -240,16 +238,15 @@ class SearchApiDbTest extends DrupalWebTestCase {
   }
 
   protected function editServer() {
-    $values = array(
-      'options[form][min_chars]' => 4,
-    );
-    $this->drupalPost("admin/config/search/search_api/server/{$this->server_id}/edit", $values, t('Save settings'));
+    $server = search_api_server_load($this->server_id, TRUE);
+    $server->options['min_chars'] = 4;
+    $success = (bool) $server->save();
+    $this->assertTrue($success, 'The server was successfully edited.');
 
     $this->clearIndex();
     $this->indexItems();
 
     // Reset the internal cache so the new values will be available.
-    search_api_server_load($this->server_id, TRUE);
     search_api_index_load($this->index_id, TRUE);
   }
 
@@ -507,9 +504,8 @@ class SearchApiDbTest extends DrupalWebTestCase {
   }
 
   protected function clearIndex() {
-    $this->drupalPost("admin/config/search/search_api/index/{$this->index_id}/status", array(), t('Clear index'));
-    $this->assertText(t('The index was successfully cleared.'));
-    $this->assertText(t('All items still need to be indexed (@total total).', array('@total' => 5)), 'Correct index status displayed.');
+    $success = search_api_index_load($this->index_id)->clear();
+    $this->assertTrue($success, 'The index was successfully cleared.');
   }
 
   /**
@@ -517,13 +513,10 @@ class SearchApiDbTest extends DrupalWebTestCase {
    */
   protected function regressionTests2() {
     // Regression test for #1916474.
-    $values = array(
-      'fields[prices][type]' => 'list<decimal>',
-      'fields[prices][boost]' => '1.0',
-      'fields[prices][indexed]' => 1,
-    );
-    $this->drupalPost("admin/config/search/search_api/index/{$this->index_id}/fields", $values, t('Save changes'));
-    $this->assertText(t('The indexed fields were successfully changed. The index was cleared and will have to be re-indexed with the new settings.'), 'Field settings saved.');
+    $index = search_api_index_load($this->index_id, TRUE);
+    $index->options['fields']['prices']['type'] = 'list<decimal>';
+    $success = $index->save();
+    $this->assertTrue($success, 'The index field settings were successfully changed.');
 
     // Reset the internal cache so the new values will be available.
     search_api_server_load($this->server_id, TRUE);
