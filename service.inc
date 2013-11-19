@@ -896,7 +896,7 @@ class SearchApiDbService extends SearchApiAbstractService {
         );
       }
       if ($skip_count) {
-        $results['result count'] = (bool) $results['results'];
+        $results['result count'] = !empty($results['results']);
       }
     }
     else {
