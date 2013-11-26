@@ -1350,7 +1350,9 @@ class SearchApiDbService extends SearchApiAbstractService {
           throw new SearchApiException(t('Unknown field in filter clause: @field.', array('@field' => $f[0])));
         }
         $field = $fields[$f[0]];
-        if ($f[1] === NULL) {
+        // If the field is in its own table, we have to check for NULL values in
+        // a special way (i.e., check for missing entries in that table).
+        if ($f[1] === NULL && $field['column'] === 'value') {
           $query = db_select($field['table'], 't')
             ->fields('t', array('item_id'));
           $cond->condition('t.item_id', $query, $f[2] == '<>' || $f[2] == '!=' ? 'IN' : 'NOT IN');
@@ -1381,7 +1383,14 @@ class SearchApiDbService extends SearchApiAbstractService {
             $tables[$f[0]] = $this->getTableAlias($field, $db_query, $new_join);
             $first_join[$f[0]] = TRUE;
           }
-          $cond->condition($tables[$f[0]] . '.' . $field['column'], $f[1], $f[2]);
+          $column = $tables[$f[0]] . '.' . $field['column'];
+          if ($f[1] !== NULL) {
+            $cond->condition($column, $f[1], $f[2]);
+          }
+          else {
+            $method = ($f[2] == '=') ? 'isNull' : 'isNotNull';
+            $cond->$method($column);
+          }
         }
       }
     }
