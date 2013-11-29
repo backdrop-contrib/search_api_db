@@ -143,21 +143,28 @@ class SearchApiDbService extends SearchApiAbstractService {
    * Overrides SearchApiAbstractService::addIndex().
    */
   public function addIndex(SearchApiIndex $index) {
-    // If there are no fields, we can take a shortcut.
-    if (!isset($index->options['fields'])) {
-      if (!isset($this->options['indexes'][$index->machine_name])) {
-        $this->options['indexes'][$index->machine_name] = array();
-        $this->server->save();
+    try {
+      // If there are no fields, we can take a shortcut.
+      if (!isset($index->options['fields'])) {
+        if (!isset($this->options['indexes'][$index->machine_name])) {
+          $this->options['indexes'][$index->machine_name] = array();
+          $this->server->save();
+        }
+        elseif ($this->options['indexes'][$index->machine_name]) {
+          $this->removeIndex($index);
+          $this->options['indexes'][$index->machine_name] = array();
+          $this->server->save();
+        }
+        return;
       }
-      elseif ($this->options['indexes'][$index->machine_name]) {
-        $this->removeIndex($index);
-        $this->options['indexes'][$index->machine_name] = array();
-        $this->server->save();
-      }
-      return;
+      $this->options += array('indexes' => array());
+      $this->options['indexes'] += array($index->machine_name => array());
     }
-    $this->options += array('indexes' => array());
-    $this->options['indexes'] += array($index->machine_name => array());
+    // The database operations might throw PDO or other exceptions, so we catch
+    // them all and re-wrap them appropriately.
+    catch (Exception $e) {
+      throw new SearchApiException($e->getMessage());
+    }
 
     // If dealing with features or stale data or whatever, we might already have
     // settings stored for this index. If we have, we should take care to only
@@ -368,96 +375,104 @@ class SearchApiDbService extends SearchApiAbstractService {
    * Internally, this is also used by addIndex().
    */
   public function fieldsUpdated(SearchApiIndex $index) {
-    $fields = &$this->options['indexes'][$index->machine_name];
-    $new_fields = $index->getFields();
+    try {
+      $fields = &$this->options['indexes'][$index->machine_name];
+      $new_fields = $index->getFields();
 
-    $reindex = FALSE;
-    $cleared = FALSE;
-    $change = FALSE;
+      $reindex = FALSE;
+      $cleared = FALSE;
+      $change = FALSE;
 
-    $set = $this->setDb();
+      $set = $this->setDb();
 
-    foreach ($fields as $name => $field) {
-      if (!isset($new_fields[$name])) {
-        // The field is no longer in the index, drop the data.
-        $this->removeFieldStorage($field);
-        unset($fields[$name]);
-        $change = TRUE;
-        continue;
-      }
-      $old_type = $field['type'];
-      $new_type = $new_fields[$name]['type'];
-      $fields[$name]['type'] = $new_type;
-      $fields[$name]['boost'] = $new_fields[$name]['boost'];
-      $old_inner_type = search_api_extract_inner_type($old_type);
-      $new_inner_type = search_api_extract_inner_type($new_type);
-      if ($old_type != $new_type) {
-        $change = TRUE;
-        if ($old_inner_type == 'text' || $new_inner_type == 'text'
-            || search_api_list_nesting_level($old_type) != search_api_list_nesting_level($new_type)) {
-          // A change in fulltext or list status necessitates completely
-          // clearing the index.
-          $reindex = TRUE;
-          if (!$cleared) {
-            $cleared = TRUE;
-            $this->deleteItems('all', $index);
-          }
+      foreach ($fields as $name => $field) {
+        if (!isset($new_fields[$name])) {
+          // The field is no longer in the index, drop the data.
           $this->removeFieldStorage($field);
-          // Keep the table in $new_fields to create the new storage.
+          unset($fields[$name]);
+          $change = TRUE;
           continue;
         }
-        elseif ($this->sqlType($old_inner_type) != $this->sqlType($new_inner_type)) {
-          // There is a change in SQL type. We don't have to clear the index, since types can be converted.
-          db_change_field($field['table'], $field['column'], $field['column'], $this->sqlType($new_type) + array('description' => "The field's value for this item."));
-          $reindex = TRUE;
+        $old_type = $field['type'];
+        $new_type = $new_fields[$name]['type'];
+        $fields[$name]['type'] = $new_type;
+        $fields[$name]['boost'] = $new_fields[$name]['boost'];
+        $old_inner_type = search_api_extract_inner_type($old_type);
+        $new_inner_type = search_api_extract_inner_type($new_type);
+        if ($old_type != $new_type) {
+          $change = TRUE;
+          if ($old_inner_type == 'text' || $new_inner_type == 'text'
+            || search_api_list_nesting_level($old_type) != search_api_list_nesting_level($new_type)
+          ) {
+            // A change in fulltext or list status necessitates completely
+            // clearing the index.
+            $reindex = TRUE;
+            if (!$cleared) {
+              $cleared = TRUE;
+              $this->deleteItems('all', $index);
+            }
+            $this->removeFieldStorage($field);
+            // Keep the table in $new_fields to create the new storage.
+            continue;
+          }
+          elseif ($this->sqlType($old_inner_type) != $this->sqlType($new_inner_type)) {
+            // There is a change in SQL type. We don't have to clear the index, since types can be converted.
+            db_change_field($field['table'], $field['column'], $field['column'], $this->sqlType($new_type) + array('description' => "The field's value for this item."));
+            $reindex = TRUE;
+          }
+          elseif ($old_inner_type == 'date' || $new_inner_type == 'date') {
+            // Even though the SQL type stays the same, we have to reindex since conversion rules change.
+            $reindex = TRUE;
+          }
         }
-        elseif ($old_inner_type == 'date' || $new_inner_type == 'date') {
-          // Even though the SQL type stays the same, we have to reindex since conversion rules change.
-          $reindex = TRUE;
+        elseif ($field['boost'] != $new_fields[$name]['boost']) {
+          $change = TRUE;
+          if (!$reindex && $new_inner_type == 'text') {
+            $multiplier = $new_fields[$name]['boost'] / $field['boost'];
+            db_update($field['table'], $this->query_options)
+              ->expression('score', 'score * :mult', array(':mult' => $multiplier))
+              ->execute();
+          }
         }
+        // Make sure the table and column now exist. (Especially important when
+        // we actually add the index for the first time.)
+        if (!db_table_exists($field['table']) || (isset($field['column']) && !db_field_exists($field['table'], $field['column']))) {
+          $this->createFieldTable($index, $new_fields[$name], $field);
+        }
+        unset($new_fields[$name]);
       }
-      elseif ($field['boost'] != $new_fields[$name]['boost']) {
+
+      $prefix = 'search_api_db_' . $index->machine_name;
+      // These are new fields that were previously not indexed.
+      foreach ($new_fields as $name => $field) {
+        $reindex = TRUE;
+        if ($this->canDenormalize($field)) {
+          $fields[$name]['table'] = $prefix;
+          $fields[$name]['column'] = $this->findFreeColumn($fields[$name]['table'], $name);
+        }
+        else {
+          $fields[$name]['table'] = $this->findFreeTable($prefix . '_', $name);
+        }
+        $this->createFieldTable($index, $field, $fields[$name]);
+        $fields[$name]['type'] = $field['type'];
+        $fields[$name]['boost'] = $field['boost'];
         $change = TRUE;
-        if (!$reindex && $new_inner_type == 'text') {
-          $multiplier = $new_fields[$name]['boost'] / $field['boost'];
-          db_update($field['table'], $this->query_options)
-            ->expression('score', 'score * :mult', array(':mult' => $multiplier))
-            ->execute();
-        }
       }
-      // Make sure the table and column now exist. (Especially important when
-      // we actually add the index for the first time.)
-      if (!db_table_exists($field['table']) || (isset($field['column']) && !db_field_exists($field['table'], $field['column']))) {
-        $this->createFieldTable($index, $new_fields[$name], $field);
-      }
-      unset($new_fields[$name]);
-    }
 
-    $prefix = 'search_api_db_' . $index->machine_name;
-    // These are new fields that were previously not indexed.
-    foreach ($new_fields as $name => $field) {
-      $reindex = TRUE;
-      if ($this->canDenormalize($field)) {
-        $fields[$name]['table'] = $prefix;
-        $fields[$name]['column'] = $this->findFreeColumn($fields[$name]['table'], $name);
+      if ($set) {
+        $this->resetDb();
       }
-      else {
-        $fields[$name]['table'] = $this->findFreeTable($prefix . '_', $name);
+
+      if ($change) {
+        $this->server->save();
       }
-      $this->createFieldTable($index, $field, $fields[$name]);
-      $fields[$name]['type']  = $field['type'];
-      $fields[$name]['boost'] = $field['boost'];
-      $change = TRUE;
+      return $reindex;
     }
-
-    if ($set) {
-      $this->resetDb();
+    // The database operations might throw PDO or other exceptions, so we catch
+    // them all and re-wrap them appropriately.
+    catch (Exception $e) {
+      throw new SearchApiException($e->getMessage());
     }
-
-    if ($change) {
-      $this->server->save();
-    }
-    return $reindex;
   }
 
   /**
@@ -497,26 +512,33 @@ class SearchApiDbService extends SearchApiAbstractService {
    * Overrides SearchApiAbstractService::removeIndex().
    */
   public function removeIndex($index) {
-    $id = is_object($index) ? $index->machine_name : $index;
-    if (!isset($this->options['indexes'][$id])) {
-      return;
-    }
-    // Don't delete the index data of read-only indexes!
-    if (!is_object($index) || empty($index->read_only)) {
-      $set = $this->setDb();
-      foreach ($this->options['indexes'][$id] as $field) {
-        // Some fields share a de-normalized table, brute force since
-        // everything is going.
-        if (db_table_exists($field['table'])) {
-          db_drop_table($field['table']);
+    try {
+      $id = is_object($index) ? $index->machine_name : $index;
+      if (!isset($this->options['indexes'][$id])) {
+        return;
+      }
+      // Don't delete the index data of read-only indexes!
+      if (!is_object($index) || empty($index->read_only)) {
+        $set = $this->setDb();
+        foreach ($this->options['indexes'][$id] as $field) {
+          // Some fields share a de-normalized table, brute force since
+          // everything is going.
+          if (db_table_exists($field['table'])) {
+            db_drop_table($field['table']);
+          }
+        }
+        if ($set) {
+          $this->resetDb();
         }
       }
-      if ($set) {
-        $this->resetDb();
-      }
+      unset($this->options['indexes'][$id]);
+      $this->server->save();
     }
-    unset($this->options['indexes'][$id]);
-    $this->server->save();
+    // The database operations might throw PDO or other exceptions, so we catch
+    // them all and re-wrap them appropriately.
+    catch (Exception $e) {
+      throw new SearchApiException($e->getMessage());
+    }
   }
 
   /**
@@ -779,40 +801,47 @@ class SearchApiDbService extends SearchApiAbstractService {
    * Implements SearchApiServiceInterface::deleteItems().
    */
   public function deleteItems($ids = 'all', SearchApiIndex $index = NULL) {
-    if (!$index) {
-      if (empty($this->options['indexes'])) {
+    try {
+      if (!$index) {
+        if (empty($this->options['indexes'])) {
+          return;
+        }
+        $set = $this->setDb();
+        foreach ($this->options['indexes'] as $index) {
+          foreach ($index as $fields) {
+            foreach ($fields as $field) {
+              db_truncate($field['table'], $this->query_options)->execute();
+            }
+          }
+        }
+        if ($set) {
+          $this->resetDb();
+        }
+        return;
+      }
+
+      if (empty($this->options['indexes'][$index->machine_name])) {
         return;
       }
       $set = $this->setDb();
-      foreach ($this->options['indexes'] as $index) {
-        foreach ($index as $fields) {
-          foreach ($fields as $field) {
-            db_truncate($field['table'], $this->query_options)->execute();
-          }
+      foreach ($this->options['indexes'][$index->machine_name] as $field) {
+        if (is_array($ids)) {
+          db_delete($field['table'], $this->query_options)
+            ->condition('item_id', $ids, 'IN')
+            ->execute();
+        }
+        else {
+          db_truncate($field['table'], $this->query_options)->execute();
         }
       }
       if ($set) {
         $this->resetDb();
       }
-      return;
     }
-
-    if (empty($this->options['indexes'][$index->machine_name])) {
-      return;
-    }
-    $set = $this->setDb();
-    foreach ($this->options['indexes'][$index->machine_name] as $field) {
-      if (is_array($ids)) {
-        db_delete($field['table'], $this->query_options)
-          ->condition('item_id', $ids, 'IN')
-          ->execute();
-      }
-      else {
-        db_truncate($field['table'], $this->query_options)->execute();
-      }
-    }
-    if ($set) {
-      $this->resetDb();
+    // The database operations might throw PDO or other exceptions, so we catch
+    // them all and re-wrap them appropriately.
+    catch (Exception $e) {
+      throw new SearchApiException($e->getMessage());
     }
   }
 
