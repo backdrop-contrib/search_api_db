@@ -1,17 +1,34 @@
 <?php
 
 /**
- * Search service class using the database for storing index information.
+ * @file
+ * Contains SearchApiDbService.
+ */
+
+/**
+ * Indexes and searches items using the database.
  */
 class SearchApiDbService extends SearchApiAbstractService {
 
   protected $previous_db;
   protected $query_options = array();
+
+  /**
+   * The keywords ignored during the current search query.
+   *
+   * @var array
+   */
   protected $ignored = array();
+
+  /**
+   * All warnings for the current search query.
+   *
+   * @var array
+   */
   protected $warnings = array();
 
   /**
-   * Overrides SearchApiAbstractService::configurationForm().
+   * {@inheritdoc}
    */
   public function configurationForm(array $form, array &$form_state) {
     // Discern between creation and editing of a server, since we don't allow
@@ -100,7 +117,7 @@ class SearchApiDbService extends SearchApiAbstractService {
   }
 
   /**
-   * Overrides SearchApiAbstractService::supportsFeature().
+   * {@inheritdoc}
    */
   public function supportsFeature($feature) {
     $supported = drupal_map_assoc(array(
@@ -111,14 +128,14 @@ class SearchApiDbService extends SearchApiAbstractService {
   }
 
   /**
-   * Overrides SearchApiAbstractService::postUpdate().
+   * {@inheritdoc}
    */
   public function postUpdate() {
     return !empty($this->server->original) && $this->server->options != $this->server->original->options;
   }
 
   /**
-   * Overrides SearchApiAbstractService::preDelete().
+   * {@inheritdoc}
    */
   public function preDelete() {
     // Only react on real deletes, not on reverts.
@@ -140,7 +157,7 @@ class SearchApiDbService extends SearchApiAbstractService {
   }
 
   /**
-   * Overrides SearchApiAbstractService::addIndex().
+   * {@inheritdoc}
    */
   public function addIndex(SearchApiIndex $index) {
     try {
@@ -176,7 +193,9 @@ class SearchApiDbService extends SearchApiAbstractService {
   }
 
   /**
-   * Helper method for finding free table names for fields.
+   * Finds a free table name using a certain prefix and name base.
+   *
+   * Used as a helper method in fieldsUpdated().
    *
    * MySQL 5.0 imposes a 64 characters length limit for table names, PostgreSQL
    * 8.3 only allows 62 bytes. Therefore, always return a name at most 62
@@ -210,7 +229,9 @@ class SearchApiDbService extends SearchApiAbstractService {
   }
 
   /**
-   * Helper method for finding free column names for fields.
+   * Finds a free column name within a database table.
+   *
+   * Used as a helper method in fieldsUpdated().
    *
    * MySQL 5.0 imposes a 64 characters length limit for identifier names,
    * PostgreSQL 8.3 only allows 62 bytes. Therefore, always return a name at
@@ -240,7 +261,9 @@ class SearchApiDbService extends SearchApiAbstractService {
   }
 
   /**
-   * Helper method for creating tables and fields.
+   * Creates or modifies a table to add an indexed field.
+   *
+   * Used as a helper method in fieldsUpdated().
    *
    * @param SearchApiIndex $index
    *   Search API index for this field.
@@ -348,6 +371,19 @@ class SearchApiDbService extends SearchApiAbstractService {
     }
   }
 
+  /**
+   * Returns the schema definition for a database column for a search data type.
+   *
+   * @param string $type
+   *   An indexed field's search type. One of the keys from
+   *   search_api_default_field_types().
+   *
+   * @return array
+   *   Column configurations to use for the field's database column.
+   *
+   * @throws SearchApiException
+   *   If $type is unknown.
+   */
   protected function sqlType($type) {
     $type = search_api_extract_inner_type($type);
     switch ($type) {
@@ -416,12 +452,14 @@ class SearchApiDbService extends SearchApiAbstractService {
             continue;
           }
           elseif ($this->sqlType($old_inner_type) != $this->sqlType($new_inner_type)) {
-            // There is a change in SQL type. We don't have to clear the index, since types can be converted.
+            // There is a change in SQL type. We don't have to clear the index,
+            // since types can be converted.
             db_change_field($field['table'], $field['column'], $field['column'], $this->sqlType($new_type) + array('description' => "The field's value for this item."));
             $reindex = TRUE;
           }
           elseif ($old_inner_type == 'date' || $new_inner_type == 'date') {
-            // Even though the SQL type stays the same, we have to reindex since conversion rules change.
+            // Even though the SQL type stays the same, we have to reindex since
+            // conversion rules change.
             $reindex = TRUE;
           }
         }
@@ -509,7 +547,7 @@ class SearchApiDbService extends SearchApiAbstractService {
   }
 
   /**
-   * Overrides SearchApiAbstractService::removeIndex().
+   * {@inheritdoc}
    */
   public function removeIndex($index) {
     try {
@@ -542,7 +580,7 @@ class SearchApiDbService extends SearchApiAbstractService {
   }
 
   /**
-   * Implements SearchApiServiceInterface::indexItems().
+   * {@inheritdoc}
    */
   public function indexItems(SearchApiIndex $index, array $items) {
     if (empty($this->options['indexes'][$index->machine_name])) {
@@ -552,9 +590,8 @@ class SearchApiDbService extends SearchApiAbstractService {
     $set = $this->setDb();
     foreach ($items as $id => $item) {
       try {
-        if ($this->indexItem($index, $id, $item)) {
-          $indexed[] = $id;
-        }
+        $this->indexItem($index, $id, $item);
+        $indexed[] = $id;
       }
       catch (Exception $e) {
         // We just log the error, hoping we can index the other items.
@@ -567,6 +604,22 @@ class SearchApiDbService extends SearchApiAbstractService {
     return $indexed;
   }
 
+  /**
+   * Indexes a single item on the specified index.
+   *
+   * Used as a helper method in indexItems().
+   *
+   * @param SearchApiIndex $index
+   *   The index for which the item is being indexed.
+   * @param $id
+   *   The item's ID.
+   * @param array $item
+   *   The extracted fields of the item.
+   *
+   * @throws Exception
+   *   Any encountered database (or other) exceptions are passed on, out of this
+   *   method.
+   */
   protected function indexItem(SearchApiIndex $index, $id, array $item) {
     $fields = $this->getFieldInfo($index);
     $fields_updated = FALSE;
@@ -678,9 +731,27 @@ class SearchApiDbService extends SearchApiAbstractService {
       $txn->rollback();
       throw $e;
     }
-    return TRUE;
   }
 
+  /**
+   * Converts a value between two search types.
+   *
+   * @param $value
+   *   The value to convert.
+   * @param $type
+   *   The type to convert to. One of the keys from
+   *   search_api_default_field_types().
+   * @param $original_type
+   *   The value's original type.
+   * @param SearchApiIndex $index
+   *   The index for which this conversion takes place.
+   *
+   * @return mixed
+   *   The converted value.
+   *
+   * @throws SearchApiException
+   *   If $type is unknown.
+   */
   protected function convert($value, $type, $original_type, SearchApiIndex $index) {
     if (search_api_is_list_type($type)) {
       $type = substr($type, 5, -1);
@@ -798,7 +869,7 @@ class SearchApiDbService extends SearchApiAbstractService {
   }
 
   /**
-   * Implements SearchApiServiceInterface::deleteItems().
+   * {@inheritdoc}
    */
   public function deleteItems($ids = 'all', SearchApiIndex $index = NULL) {
     try {
@@ -846,7 +917,7 @@ class SearchApiDbService extends SearchApiAbstractService {
   }
 
   /**
-   * Implements SearchApiServiceInterface::search().
+   * {@inheritdoc}
    */
   public function search(SearchApiQueryInterface $query) {
     $time_method_called = microtime(TRUE);
@@ -952,7 +1023,9 @@ class SearchApiDbService extends SearchApiAbstractService {
   }
 
   /**
-   * Helper method for creating a database query for a search.
+   * Creates a database query for a search.
+   *
+   * Used as a helper method in search() and getAutocompleteSuggestions().
    *
    * @param SearchApiQueryInterface $query
    *   The search query for which to create the database query.
@@ -1044,7 +1117,15 @@ class SearchApiDbService extends SearchApiAbstractService {
   }
 
   /**
-   * Helper method for removing unnecessary nested expressions from keys.
+   * Removes nested expressions and phrase groupings from the search keys.
+   *
+   * Used as a helper method in createDbQuery() and createFilterCondition().
+   *
+   * @param array|string|null $keys
+   *   The keys which should be preprocessed.
+   *
+   * @return array|string|null
+   *   The preprocessed keys.
    */
   protected function prepareKeys($keys) {
     if (is_scalar($keys)) {
@@ -1085,7 +1166,15 @@ class SearchApiDbService extends SearchApiAbstractService {
   }
 
   /**
-   * Helper method for splitting keys.
+   * Splits a keyword expression into separate words.
+   *
+   * Used as a helper method in prepareKeys().
+   *
+   * @param array|string|null $keys
+   *   The keys to split.
+   *
+   * @return array|string|null
+   *   The keys split into separate words.
    */
   protected function splitKeys($keys) {
     if (is_scalar($keys)) {
@@ -1113,7 +1202,18 @@ class SearchApiDbService extends SearchApiAbstractService {
   }
 
   /**
-   * Helper method for eliminating duplicates from the search keys.
+   * Eliminates duplicate keys from a keyword array.
+   *
+   * Used as a helper method in prepareKeys().
+   *
+   * @param array $keys
+   *   The keywords to parse.
+   * @param array $words
+   *   (optional) A cache of all encountered words so far, used internally for
+   *   recursive invocations.
+   *
+   * @return array
+   *   The processed keywords.
    */
   protected function eliminateDuplicates($keys, &$words = array()) {
     foreach ($keys as $i => $word) {
@@ -1136,7 +1236,9 @@ class SearchApiDbService extends SearchApiAbstractService {
   }
 
   /**
-   * Helper method for creating a SELECT query for given search keys.
+   * Creates a SELECT query for given search keys.
+   *
+   * Used as a helper method in createDbQuery() and createFilterCondition().
    *
    * @param $keys
    *   The search keys, formatted like the return value of
@@ -1281,7 +1383,8 @@ class SearchApiDbService extends SearchApiAbstractService {
     if ($negated) {
       if (!isset($db_query) || $conj == 'OR') {
         if (isset($all_fields['search_api_language'])) {
-          // We use this table because all items should be contained exactly once.
+          // We use this table because all items should be contained exactly
+          // once.
           $table = $all_fields['search_api_language']['table'];
         }
         else {
@@ -1295,7 +1398,8 @@ class SearchApiDbService extends SearchApiAbstractService {
           }
         }
         if (isset($db_query)) {
-          // We are in a rather bizarre case where the keys are something like "a OR (NOT b)".
+          // We are in a rather bizarre case where the keys are something like
+          // "a OR (NOT b)".
           $old_query = $db_query;
         }
         $db_query = db_select($table, 't', $this->query_options);
@@ -1334,28 +1438,22 @@ class SearchApiDbService extends SearchApiAbstractService {
   }
 
   /**
-   * Helper method for finding any needed table for a filter query.
-   */
-  protected function findTable(array $filters, array $fields) {
-    foreach ($filters as $filter) {
-      if (is_array($filter)) {
-        return $fields[$filter[0]]['table'];
-      }
-    }
-    foreach ($filters as $filter) {
-      if (is_object($filter)) {
-        $ret = $this->findTable($filter->getFilters(), $fields);
-        if ($ret) {
-          return $ret;
-        }
-      }
-    }
-  }
-
-  /**
-   * Helper method for creating a condition for filtering search results.
+   * Creates a database query condition for a given search filter.
    *
-   * @return QueryConditionInterface
+   * Used as a helper method in createDbQuery().
+   *
+   * @param SearchApiQueryFilterInterface $filter
+   *   The filter for which a condition should be created.
+   * @param array $fields
+   *   Internal information about the index's fields.
+   * @param SelectQueryInterface $db_query
+   *   The database query to which the condition will be added.
+   *
+   * @return DatabaseCondition|null
+   *   The condition to set on the query, or NULL if none is necessary.
+   *
+   * @throws SearchApiException
+   *   If an unknown field was used in the filter.
    */
   protected function createFilterCondition(SearchApiQueryFilterInterface $filter, array $fields, SelectQueryInterface $db_query) {
     $cond = db_condition($filter->getConjunction());
@@ -1427,7 +1525,7 @@ class SearchApiDbService extends SearchApiAbstractService {
   }
 
   /**
-   * Helper method for adding a field's table to a database query.
+   * Joins a field's table into a database select query.
    *
    * @param array $field
    *   The field information array. The "table" key should contain the table
@@ -1457,7 +1555,7 @@ class SearchApiDbService extends SearchApiAbstractService {
   }
 
   /**
-   * Helper method for getting the facet values for a query.
+   * Computes facets for a search query.
    *
    * @param SearchApiQueryInterface $query
    *   The search query for which facets should be computed.
@@ -1515,7 +1613,7 @@ class SearchApiDbService extends SearchApiAbstractService {
   }
 
   /**
-   * Helper method for creating a temporary table from a SelectQuery.
+   * Creates a temporary table from a SelectQuery.
    *
    * Will return the name of a table containing the item IDs of all results, or
    * FALSE on failure.
