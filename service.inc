@@ -360,6 +360,9 @@ class SearchApiDbService extends SearchApiAbstractService {
       $db_field += array(
         'description' => "The field's value for this item.",
       );
+      if ($new_table && search_api_is_list_type($field['type'])) {
+        $db_field['not null'] = TRUE;
+      }
       db_add_field($db['table'], $db['column'], $db_field);
       if ($db_field['type'] === 'varchar') {
         db_add_index($db['table'], $db['column'], array(array($db['column'], 10)));
@@ -369,7 +372,7 @@ class SearchApiDbService extends SearchApiAbstractService {
       }
       if ($new_table) {
         if (search_api_is_list_type($field['type'])) {
-          // Add a covering index for list
+          // Add a covering index for lists.
           db_add_primary_key($db['table'], array('item_id', $db['column']));
         }
         else {
@@ -692,13 +695,13 @@ class SearchApiDbService extends SearchApiAbstractService {
           $values = array();
           if (is_array($value)) {
             foreach ($value as $v) {
-              if ($v !== NULL) {
+              if (isset($v)) {
                 $values["$v"] = TRUE;
               }
             }
             $values = array_keys($values);
           }
-          else {
+          elseif (isset($value)) {
             $values[] = $value;
           }
           if ($values) {
