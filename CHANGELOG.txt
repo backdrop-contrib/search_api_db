@@ -1,3 +1,6 @@
+Search API Database Search 1.x, dev (xx/xx/xxxx):
+-------------------------------------------------
+
 Search API Database Search 1.1 (12/09/2013):
 --------------------------------------------
 - #2138669 by drunken monkey, acouch: Fixed MS SQL error for primary key on
