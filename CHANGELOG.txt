@@ -1,5 +1,7 @@
 Search API Database Search 1.x, dev (xx/xx/xxxx):
 -------------------------------------------------
+- #2147361 by drunken monkey: Revised non-default database support to be more
+  robust.
 - #2126291 by drunken monkey: Update error handling according to the latest
   Search API change.
 - #2136409 by drunken monkey: Fixed handling of NULL filters.

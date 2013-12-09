@@ -10,8 +10,12 @@
  */
 class SearchApiDbService extends SearchApiAbstractService {
 
-  protected $previous_db;
-  protected $query_options = array();
+  /**
+   * The database connection to use for this server.
+   *
+   * @var DatabaseConnection
+   */
+  protected $connection;
 
   /**
    * The keywords ignored during the current search query.
@@ -26,6 +30,17 @@ class SearchApiDbService extends SearchApiAbstractService {
    * @var array
    */
   protected $warnings = array();
+
+  /**
+   * {@inheritdoc}
+   */
+  public function __construct(SearchApiServer $server) {
+    parent::__construct($server);
+    if (isset($this->options['database'])) {
+      list($key, $target) = explode(':', $this->options['database'], 2);
+      $this->connection = Database::getConnection($target, $key);
+    }
+  }
 
   /**
    * {@inheritdoc}
@@ -277,7 +292,6 @@ class SearchApiDbService extends SearchApiAbstractService {
    */
   protected function createFieldTable(SearchApiIndex $index, $field, &$db) {
     $type = search_api_extract_inner_type($field['type']);
-    $set = $this->setDb();
     $new_table = !db_table_exists($db['table']);
     if ($new_table) {
       $table = array(
@@ -365,10 +379,6 @@ class SearchApiDbService extends SearchApiAbstractService {
         }
       }
     }
-
-    if ($set) {
-      $this->resetDb();
-    }
   }
 
   /**
@@ -419,8 +429,6 @@ class SearchApiDbService extends SearchApiAbstractService {
       $cleared = FALSE;
       $change = FALSE;
 
-      $set = $this->setDb();
-
       foreach ($fields as $name => $field) {
         if (!isset($new_fields[$name])) {
           // The field is no longer in the index, drop the data.
@@ -467,7 +475,7 @@ class SearchApiDbService extends SearchApiAbstractService {
           $change = TRUE;
           if (!$reindex && $new_inner_type == 'text') {
             $multiplier = $new_fields[$name]['boost'] / $field['boost'];
-            db_update($field['table'], $this->query_options)
+            $this->connection->update($field['table'])
               ->expression('score', 'score * :mult', array(':mult' => $multiplier))
               ->execute();
           }
@@ -495,10 +503,6 @@ class SearchApiDbService extends SearchApiAbstractService {
         $fields[$name]['type'] = $field['type'];
         $fields[$name]['boost'] = $field['boost'];
         $change = TRUE;
-      }
-
-      if ($set) {
-        $this->resetDb();
       }
 
       if ($change) {
@@ -557,16 +561,12 @@ class SearchApiDbService extends SearchApiAbstractService {
       }
       // Don't delete the index data of read-only indexes!
       if (!is_object($index) || empty($index->read_only)) {
-        $set = $this->setDb();
         foreach ($this->options['indexes'][$id] as $field) {
           // Some fields share a de-normalized table, brute force since
           // everything is going.
           if (db_table_exists($field['table'])) {
             db_drop_table($field['table']);
           }
-        }
-        if ($set) {
-          $this->resetDb();
         }
       }
       unset($this->options['indexes'][$id]);
@@ -587,7 +587,6 @@ class SearchApiDbService extends SearchApiAbstractService {
       throw new SearchApiException(t('No field settings for index with id @id.', array('@id' => $index->machine_name)));
     }
     $indexed = array();
-    $set = $this->setDb();
     foreach ($items as $id => $item) {
       try {
         $this->indexItem($index, $id, $item);
@@ -597,9 +596,6 @@ class SearchApiDbService extends SearchApiAbstractService {
         // We just log the error, hoping we can index the other items.
         watchdog('search_api_db', check_plain($e->getMessage()), NULL, WATCHDOG_WARNING);
       }
-    }
-    if ($set) {
-      $this->resetDb();
     }
     return $indexed;
   }
@@ -623,7 +619,7 @@ class SearchApiDbService extends SearchApiAbstractService {
   protected function indexItem(SearchApiIndex $index, $id, array $item) {
     $fields = $this->getFieldInfo($index);
     $fields_updated = FALSE;
-    $txn = db_transaction('search_api_indexing', $this->query_options);
+    $txn = $this->connection->startTransaction('search_api_indexing');
     try {
       $inserts = array();
       foreach ($item as $name => $field) {
@@ -643,7 +639,7 @@ class SearchApiDbService extends SearchApiAbstractService {
         }
         $table = $fields[$name]['table'];
         $boost = $fields[$name]['boost'];
-        db_delete($table, $this->query_options)
+        $this->connection->delete($table)
             ->condition('item_id', $id)
             ->execute();
         // Don't index null values
@@ -680,7 +676,7 @@ class SearchApiDbService extends SearchApiAbstractService {
             }
           }
           if ($words) {
-            $query = db_insert($table, $this->query_options)
+            $query = $this->connection->insert($table)
               ->fields(array('item_id', 'word', 'score'));
             foreach ($words as $word) {
               $query->values(array(
@@ -706,7 +702,7 @@ class SearchApiDbService extends SearchApiAbstractService {
             $values[] = $value;
           }
           if ($values) {
-            $insert = db_insert($table, $this->query_options)
+            $insert = $this->connection->insert($table)
               ->fields(array('item_id', $fields[$name]['column']));
             foreach ($values as $v) {
               $insert->values(array(
@@ -722,7 +718,7 @@ class SearchApiDbService extends SearchApiAbstractService {
         }
       }
       foreach ($inserts as $table => $data) {
-        db_insert($table, $this->query_options)
+        $this->connection->insert($table)
           ->fields(array_merge($data, array('item_id' => $id)))
           ->execute();
       }
@@ -877,16 +873,12 @@ class SearchApiDbService extends SearchApiAbstractService {
         if (empty($this->options['indexes'])) {
           return;
         }
-        $set = $this->setDb();
         foreach ($this->options['indexes'] as $index) {
           foreach ($index as $fields) {
             foreach ($fields as $field) {
-              db_truncate($field['table'], $this->query_options)->execute();
+              $this->connection->truncate($field['table'])->execute();
             }
           }
-        }
-        if ($set) {
-          $this->resetDb();
         }
         return;
       }
@@ -894,19 +886,15 @@ class SearchApiDbService extends SearchApiAbstractService {
       if (empty($this->options['indexes'][$index->machine_name])) {
         return;
       }
-      $set = $this->setDb();
       foreach ($this->options['indexes'][$index->machine_name] as $field) {
         if (is_array($ids)) {
-          db_delete($field['table'], $this->query_options)
+          $this->connection->delete($field['table'])
             ->condition('item_id', $ids, 'IN')
             ->execute();
         }
         else {
-          db_truncate($field['table'], $this->query_options)->execute();
+          $this->connection->truncate($field['table'])->execute();
         }
-      }
-      if ($set) {
-        $this->resetDb();
       }
     }
     // The database operations might throw PDO or other exceptions, so we catch
@@ -926,7 +914,6 @@ class SearchApiDbService extends SearchApiAbstractService {
     if (empty($this->options['indexes'][$index->machine_name])) {
       throw new SearchApiException(t('Unknown index @id.', array('@id' => $index->machine_name)));
     }
-    $set = $this->setDb();
     $fields = $this->getFieldInfo($index);
 
     $db_query = $this->createDbQuery($query, $fields);
@@ -1007,10 +994,6 @@ class SearchApiDbService extends SearchApiAbstractService {
     $results['warnings'] = array_keys($this->warnings);
     $results['ignored'] = array_keys($this->ignored);
 
-    if ($set) {
-      $this->resetDb();
-    }
-
     $time_end = microtime(TRUE);
     $results['performance'] = array(
       'complete' => $time_end - $time_method_called,
@@ -1041,8 +1024,6 @@ class SearchApiDbService extends SearchApiAbstractService {
    *   If some illegal query setting (unknown field, etc.) was encountered.
    */
   protected function createDbQuery(SearchApiQueryInterface $query, array $fields) {
-    $set = $this->setDb();
-
     $keys = &$query->getKeys();
     $keys_set = (boolean) $keys;
     $keys = $this->prepareKeys($keys);
@@ -1091,7 +1072,7 @@ class SearchApiDbService extends SearchApiAbstractService {
     }
 
     if (!isset($db_query)) {
-      $db_query = db_select($fields['search_api_language']['table'], 't', $this->query_options);
+      $db_query = $this->connection->select($fields['search_api_language']['table'], 't');
       $db_query->addField('t', 'item_id', 'item_id');
       $db_query->addExpression(':score', 'score', array(':score' => 1));
       $db_query->distinct();
@@ -1108,10 +1089,6 @@ class SearchApiDbService extends SearchApiAbstractService {
     $db_query->addTag('search_api_db_search');
     $db_query->addMetaData('search_api_query', $query);
     $db_query->addMetaData('search_api_db_fields', $fields);
-
-    if ($set) {
-      $this->resetDb();
-    }
 
     return $db_query;
   }
@@ -1306,7 +1283,7 @@ class SearchApiDbService extends SearchApiAbstractService {
       }
       foreach ($fields as $name => $field) {
         $table = $field['table'];
-        $query = db_select($table, 't', $this->query_options);
+        $query = $this->connection->select($table, 't');
         if ($neg_nested) {
           $query->fields('t', array('item_id', 'word'));
         }
@@ -1360,7 +1337,7 @@ class SearchApiDbService extends SearchApiAbstractService {
     }
 
     if (isset($db_query) && !$not_nested) {
-      $db_query = db_select($db_query, 't', $this->query_options);
+      $db_query = $this->connection->select($db_query, 't');
       $db_query->addField('t', 'item_id', 'item_id');
       if (!$neg) {
         $db_query->addExpression('SUM(t.score)', 'score');
@@ -1402,7 +1379,7 @@ class SearchApiDbService extends SearchApiAbstractService {
           // "a OR (NOT b)".
           $old_query = $db_query;
         }
-        $db_query = db_select($table, 't', $this->query_options);
+        $db_query = $this->connection->select($table, 't');
         $db_query->addField('t', 'item_id', 'item_id');
         if (!$neg) {
           $db_query->addExpression(':score', 'score', array(':score' => 1));
@@ -1431,7 +1408,7 @@ class SearchApiDbService extends SearchApiAbstractService {
     }
 
     if ($neg_nested) {
-      $db_query = db_select($db_query, 't')->fields('t', array('item_id'));
+      $db_query = $this->connection->select($db_query, 't')->fields('t', array('item_id'));
     }
 
     return $db_query;
@@ -1480,7 +1457,7 @@ class SearchApiDbService extends SearchApiAbstractService {
         // If the field is in its own table, we have to check for NULL values in
         // a special way (i.e., check for missing entries in that table).
         if ($f[1] === NULL && $field['column'] === 'value') {
-          $query = db_select($field['table'], 't')
+          $query = $this->connection->select($field['table'], 't')
             ->fields('t', array('item_id'));
           $cond->condition('t.item_id', $query, $f[2] == '<>' || $f[2] == '!=' ? 'IN' : 'NOT IN');
           continue;
@@ -1580,7 +1557,7 @@ class SearchApiDbService extends SearchApiAbstractService {
       }
       $field = $fields[$facet['field']];
 
-      $select = db_select($table, 't');
+      $select = $this->connection->select($table, 't');
       $alias = $this->getTableAlias($field, $select, TRUE, $facet['missing'] ? 'leftJoin' : 'innerJoin');
       $select->addField($alias, search_api_is_text_type($field['type']) ? 'word' : $field['column'], 'value');
       // Facets without missing make sure a value is present with an inner join
@@ -1640,7 +1617,7 @@ class SearchApiDbService extends SearchApiAbstractService {
       return FALSE;
     }
     $args = $db_query->getArguments();
-    return db_query_temporary((string) $db_query, $args, $this->query_options);
+    return $this->connection->queryTemporary((string) $db_query, $args);
   }
 
   /**
@@ -1662,7 +1639,6 @@ class SearchApiDbService extends SearchApiAbstractService {
     if (empty($this->options['indexes'][$index->machine_name])) {
       throw new SearchApiException(t('Unknown index @id.', array('@id' => $index->machine_name)));
     }
-    $set = $this->setDb();
     $fields = $this->getFieldInfo($index);
 
     $suggestions = array();
@@ -1709,7 +1685,7 @@ class SearchApiDbService extends SearchApiAbstractService {
         if (!$table) {
           return;
         }
-        $all_results = db_select($table, 't', $this->query_options)
+        $all_results = $this->connection->select($table, 't')
           ->fields('t', array('item_id'));
         $total = db_query("SELECT COUNT(item_id) FROM {{$table}}")->fetchField();
       }
@@ -1726,7 +1702,7 @@ class SearchApiDbService extends SearchApiAbstractService {
         if (!isset($fields[$field]) || !search_api_is_text_type($fields[$field]['type'])) {
           continue;
         }
-        $field_query = db_select($fields[$field]['table'], 't', $this->query_options)
+        $field_query = $this->connection->select($fields[$field]['table'], 't')
           ->fields('t', array('word', 'item_id'))
           ->condition('item_id', $all_results, 'IN');
         if ($pass == 1) {
@@ -1740,7 +1716,7 @@ class SearchApiDbService extends SearchApiAbstractService {
           $word_query->union($field_query);
         }
       }
-      $db_query = db_select($word_query, 't', $this->query_options);
+      $db_query = $this->connection->select($word_query, 't');
       $db_query->addExpression('COUNT(DISTINCT item_id)', 'results');
       $db_query->fields('t', array('word'))
         ->groupBy('word')
@@ -1755,10 +1731,6 @@ class SearchApiDbService extends SearchApiAbstractService {
           'results' => $row->results,
         );
       }
-    }
-
-    if ($set) {
-      $this->resetDb();
     }
 
     return $suggestions;
@@ -1783,33 +1755,6 @@ class SearchApiDbService extends SearchApiAbstractService {
       }
     }
     return $fields;
-  }
-
-  /**
-   * Helper method for setting the database to the one selected by the user.
-   */
-  protected function setDb() {
-    if (!isset($this->previous_db)) {
-      list($key, $target) = explode(':', $this->options['database'], 2);
-      $this->previous_db = db_set_active($key);
-      if (!isset($this->query_options)) {
-        $this->query_options = array('target' => $target);
-      }
-      return TRUE;
-    }
-    return FALSE;
-  }
-
-  /**
-   * Helper method for resetting the original database.
-   */
-  protected function resetDb() {
-    if (isset($this->previous_db)) {
-      db_set_active($this->previous_db);
-      $this->previous_db = NULL;
-      return TRUE;
-    }
-    return FALSE;
   }
 
 }
