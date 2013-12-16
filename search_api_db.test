@@ -185,7 +185,7 @@ class SearchApiDbTest extends DrupalWebTestCase {
   }
 
   protected function searchNoResults() {
-    $results = $this->buildSearch('text')->execute();
+    $results = $this->buildSearch('test')->execute();
     $this->assertEqual($results['result count'], 0, 'No search results returned without indexing.');
     $this->assertEqual(array_keys($results['results']), array(), 'No search results returned without indexing.');
     $this->assertEqual($results['ignored'], array(), 'No keys were ignored.');
