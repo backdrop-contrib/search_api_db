@@ -872,10 +872,12 @@ class SearchApiDbService extends SearchApiAbstractService {
         if (empty($this->options['indexes'])) {
           return;
         }
-        foreach ($this->options['indexes'] as $index) {
-          foreach ($index as $fields) {
-            foreach ($fields as $field) {
+        $truncated = array();
+        foreach ($this->options['indexes'] as $fields) {
+          foreach ($fields as $field) {
+            if (isset($field['table']) && !isset($truncated[$field['table']])) {
               $this->connection->truncate($field['table'])->execute();
+              $truncated[$field['table']] = TRUE;
             }
           }
         }

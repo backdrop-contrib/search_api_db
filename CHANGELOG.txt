@@ -1,5 +1,6 @@
 Search API Database Search 1.x, dev (xx/xx/xxxx):
 -------------------------------------------------
+- #2156151 by drunken monkey: Fixed exception when clearing a server.
 
 Search API Database Search 1.1 (12/09/2013):
 --------------------------------------------
