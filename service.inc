@@ -1340,7 +1340,6 @@ class SearchApiDbService extends SearchApiAbstractService {
     $db_query = NULL;
     $mul_words = FALSE;
     $neg_nested = $neg && $conj == 'AND';
-    $mult_fields = count($fields) > 1;
 
     foreach ($keys as $i => $key) {
       if (!element_child($i)) {
@@ -1362,7 +1361,7 @@ class SearchApiDbService extends SearchApiAbstractService {
       }
     }
     $subs = count($words) + count($nested);
-    $not_nested = ($subs <= 1 && !$mult_fields) || ($neg && $conj == 'OR' && !$negated);
+    $not_nested = ($subs <= 1 && count($fields) == 1) || ($neg && $conj == 'OR' && !$negated);
 
     if ($words) {
       // All text fields in the index share a table. Get name from the first.
@@ -1377,12 +1376,6 @@ class SearchApiDbService extends SearchApiAbstractService {
       }
       elseif ($not_nested) {
         $db_query->fields('t', array('item_id', 'score'));
-      }
-      elseif ($mult_fields) {
-        $db_query->fields('t', array('item_id', 'word'));
-        $db_query->addExpression('SUM(t.score)', 'score');
-        $db_query->groupBy('t.item_id');
-        $db_query->groupBy('t.word');
       }
       else {
         $db_query->fields('t', array('item_id', 'word', 'score'));
