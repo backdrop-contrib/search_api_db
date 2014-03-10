@@ -1,5 +1,6 @@
 Search API Database Search 1.x, dev (xx/xx/xxxx):
 -------------------------------------------------
+- #1658964 by figureone, drunken monkey: Fixed support for facets with count 0.
 - #2170681 by drumm: Improved fulltext search performance further.
 - #2155767 by drumm, drunken monkey: Added fulltext search performance
   improvement.

@@ -1630,12 +1630,47 @@ class SearchApiDbService extends SearchApiAbstractService {
       }
 
       $terms = array();
+      $values = array();
+      $has_missing = FALSE;
       foreach ($select->execute() as $row) {
         $terms[] = array(
           'count' => $row->num,
           'filter' => isset($row->value) ? '"' . $row->value . '"' : '!',
         );
+        if (isset($row->value)) {
+          $values[] = $row->value;
+        }
+        else {
+          $has_missing = TRUE;
+        }
       }
+
+      // If 'Minimum facet count' is set to 0 in the display options for this facet,
+      // we need to retrieve all facets, even ones that aren't matched in our search
+      // result set above. Here we SELECT all DISTINCT facets, and add in those
+      // facets that weren't added above.
+      if ($facet['min_count'] < 1) {
+        $select = $this->connection->select($field['table'], 't');
+        $select->addField('t', $field['column'], 'value');
+        $select->distinct();
+        if ($values) {
+          $select->condition($field['column'], $values, 'NOT IN');
+        }
+        $select->isNotNull($field['column']);
+        foreach ($select->execute() as $row) {
+          $terms[] = array(
+            'count' => 0,
+            'filter' => '"' . $row->value . '"',
+          );
+        }
+        if ($facet['missing'] && !$has_missing) {
+          $terms[] = array(
+            'count' => 0,
+            'filter' => '!',
+          );
+        }
+      }
+
       $ret[$key] = $terms;
     }
     return $ret;

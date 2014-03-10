@@ -427,6 +427,7 @@ class SearchApiDbTest extends DrupalWebTestCase {
       array('count' => 2, 'filter' => '"item"'),
       array('count' => 1, 'filter' => '!'),
     );
+    usort($results['search_api_facets']['type'], array($this, 'facetCompare'));
     $facet_match = _search_api_settings_equals($results['search_api_facets']['type'], $expected);
     $this->assertTrue($facet_match, 'Correct facets were returned');
 
@@ -439,6 +440,7 @@ class SearchApiDbTest extends DrupalWebTestCase {
       array('count' => 2, 'filter' => '"article"'),
       array('count' => 2, 'filter' => '"item"'),
     );
+    usort($results['search_api_facets']['type'], array($this, 'facetCompare'));
     $facet_match = _search_api_settings_equals($results['search_api_facets']['type'], $expected);
     $this->assertTrue($facet_match, 'Correct facets were returned');
 
@@ -558,6 +560,40 @@ class SearchApiDbTest extends DrupalWebTestCase {
     $results = $query->execute();
     $this->assertEqual($results['result count'], 4, 'NOT NULL filter returned correct number of results.');
     $this->assertEqual(array_keys($results['results']), array(1, 2, 4, 5), 'NOT NULL filter returned correct result.');
+
+    // Regression tests for #1658964.
+    $query = $this->buildSearch();
+    $facets['type'] = array(
+      'field' => 'type',
+      'limit' => 0,
+      'min_count' => 0,
+      'missing' => TRUE,
+    );
+    $query->setOption('search_api_facets', $facets);
+    $query->condition('type', 'article');
+    $query->range(0, 0);
+    $results = $query->execute();
+    $expected = array(
+      array('count' => 2, 'filter' => '"article"'),
+      array('count' => 0, 'filter' => '!'),
+      array('count' => 0, 'filter' => '"item"'),
+    );
+    usort($results['search_api_facets']['type'], array($this, 'facetCompare'));
+    $facet_match = _search_api_settings_equals($results['search_api_facets']['type'], $expected);
+    $this->assertTrue($facet_match, 'Correct facets were returned');
+    debug($results['search_api_facets']['type']);
+  }
+
+  /**
+   * Compares two facets for ordering.
+   *
+   * Used as a callback for usort() in regressionTests().
+   */
+  protected function facetCompare($a, $b) {
+    if ($a['count'] != $b['count']) {
+      return $b['count'] - $a['count'];
+    }
+    return strcasecmp($a['filter'], $b['filter']);
   }
 
   protected function clearIndex() {
