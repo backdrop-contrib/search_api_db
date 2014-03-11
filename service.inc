@@ -135,10 +135,11 @@ class SearchApiDbService extends SearchApiAbstractService {
    * {@inheritdoc}
    */
   public function supportsFeature($feature) {
-    $supported = drupal_map_assoc(array(
-      'search_api_autocomplete',
-      'search_api_facets',
-    ));
+    $supported = array(
+      'search_api_autocomplete' => TRUE,
+      'search_api_facets' => TRUE,
+      'search_api_facets_operator_or' => TRUE,
+    );
     return isset($supported[$feature]);
   }
 
@@ -1609,11 +1610,29 @@ class SearchApiDbService extends SearchApiAbstractService {
       }
       $field = $fields[$facet['field']];
 
-      $select = $this->connection->select($table, 't');
+      if (empty($facet['operator']) || $facet['operator'] != 'or') {
+        // All the AND facets can use the main query.
+        $select = db_select($table, 't');
+      }
+      else {
+        // For OR facets, we need to build a different base query that excludes
+        // the facet filters applied to the facet.
+        $or_query = clone $query;
+        $filters = &$or_query->getFilter()->getFilters();
+        $tag = 'facet:' . $facet['field'];
+        foreach ($filters as $filter_id => $filter) {
+          if ($filter instanceof SearchApiQueryFilterInterface && $filter->hasTag($tag)) {
+            unset($filters[$filter_id]);
+          }
+        }
+        $or_db_query = $this->createDbQuery($or_query, $fields);
+        $select = db_select($or_db_query, 't');
+      }
+
+      // If "Include missing facet" is disabled, we use an INNER JOIN and add IS
+      // NOT NULL for shared tables.
       $alias = $this->getTableAlias($field, $select, TRUE, $facet['missing'] ? 'leftJoin' : 'innerJoin');
       $select->addField($alias, search_api_is_text_type($field['type']) ? 'word' : $field['column'], 'value');
-      // Facets without missing make sure a value is present with an inner join
-      // and not null for shared tables.
       if (!$facet['missing'] && !search_api_is_text_type($field['type'])) {
         $select->isNotNull($alias . '.' . $field['column']);
       }

@@ -45,6 +45,7 @@ class SearchApiDbTest extends DrupalWebTestCase {
     $this->searchNoResults();
     $this->indexItems();
     $this->searchSuccess1();
+    $this->checkFacets();
     $this->regressionTests();
     $this->editServer();
     $this->searchSuccess2();
@@ -236,6 +237,56 @@ class SearchApiDbTest extends DrupalWebTestCase {
     $this->assertEqual(array_keys($results['results']), array(4), 'Complex search 1 returned correct result.');
     $this->assertEqual($results['ignored'], array(), 'No keys were ignored.');
     $this->assertEqual($results['warnings'], array(), 'No warnings were displayed.');
+  }
+
+  protected function checkFacets() {
+    $query = $this->buildSearch();
+    $filter = $query->createFilter('OR', array('facet:type'));
+    $filter->condition('type', 'article');
+    $query->filter($filter);
+    $facets['type'] = array(
+      'field' => 'type',
+      'limit' => 0,
+      'min_count' => 1,
+      'missing' => TRUE,
+      'operator' => 'or',
+    );
+    $query->setOption('search_api_facets', $facets);
+    $query->range(0, 0);
+    $results = $query->execute();
+    $this->assertEqual($results['result count'], 2, 'OR facets query returned correct number of results.');
+    $expected = array(
+      array('count' => 2, 'filter' => '"article"'),
+      array('count' => 2, 'filter' => '"item"'),
+      array('count' => 1, 'filter' => '!'),
+    );
+    $facet_match = _search_api_settings_equals($results['search_api_facets']['type'], $expected);
+    $this->assertTrue($facet_match, 'Correct OR facets were returned');
+
+    $query = $this->buildSearch();
+    $filter = $query->createFilter('OR', array('facet:type'));
+    $filter->condition('type', 'article');
+    $query->filter($filter);
+    $filter = $query->createFilter('AND');
+    $filter->condition('type', NULL, '<>');
+    $query->filter($filter);
+    $facets['type'] = array(
+      'field' => 'type',
+      'limit' => 0,
+      'min_count' => 1,
+      'missing' => TRUE,
+      'operator' => 'or',
+    );
+    $query->setOption('search_api_facets', $facets);
+    $query->range(0, 0);
+    $results = $query->execute();
+    $this->assertEqual($results['result count'], 2, 'OR facets query returned correct number of results.');
+    $expected = array(
+      array('count' => 2, 'filter' => '"article"'),
+      array('count' => 2, 'filter' => '"item"'),
+    );
+    $facet_match = _search_api_settings_equals($results['search_api_facets']['type'], $expected);
+    $this->assertTrue($facet_match, 'Correct OR facets were returned');
   }
 
   protected function editServer() {
