@@ -207,7 +207,7 @@ function search_api_db_update_7104() {
       }
 
       // Add keys.
-      $connection->schema()->addIndex($text_table, 'word', array(array('word', 20)));
+      $connection->schema()->addIndex($text_table, 'word_field', array(array('word', 20), 'field_name'));
       $connection->schema()->addPrimaryKey($text_table, array('item_id', 'field_name', 'word'));
     }
   }
@@ -219,6 +219,41 @@ function search_api_db_update_7104() {
         'options' => serialize($options),
       ))
       ->execute();
+  }
+}
+
+/**
+ * Add a (word, field_name) covering index to fulltext tables.
+ */
+function search_api_db_update_7105() {
+  // Get a connection for each service using Search API DB.
+  $servers_query = db_select('search_api_server', 's')
+    ->condition('s.class', 'search_api_db_service');
+  $servers_query->innerJoin('search_api_index', 'i', 'i.server = s.machine_name');
+  $servers_query->fields('s', array('options'));
+  $servers_query->fields('i', array('server', 'machine_name', 'item_type'));
+  $servers = $servers_query->execute();
+  $server_options = array();
+  foreach ($servers as $server) {
+    if (!isset($server_options[$server->server])) {
+      $server_options[$server->server] = unserialize($server->options);
+    }
+    $options = $server_options[$server->server];
+    list($key, $target) = explode(':', $options['database'], 2);
+    if (!empty($options['indexes'][$server->machine_name])) {
+      $connection = Database::getConnection($target, $key);
+      // Find name of text table.
+      foreach ($options['indexes'][$server->machine_name] as $field) {
+        if (search_api_is_text_type($field['type'])) {
+          // If the word index exists, replace it with word_field.
+          if ($connection->schema()->indexExists($field['table'], 'word')) {
+            $connection->schema()->dropIndex($field['table'], 'word');
+            $connection->schema()->addIndex($field['table'], 'word_field', array(array('word', 20), 'field_name'));
+          }
+          break;
+        }
+      }
+    }
   }
 }
 

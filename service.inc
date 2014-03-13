@@ -534,7 +534,7 @@ class SearchApiDbService extends SearchApiAbstractService {
             ),
           ),
           'indexes' => array(
-            'word' => array(array('word', 20)),
+            'word_field' => array(array('word', 20), 'field_name'),
           ),
           // Add a covering index since word is not repeated for each item.
           'primary key' => array('item_id', 'field_name', 'word'),
