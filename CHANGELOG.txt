@@ -1,5 +1,7 @@
 Search API Database Search 1.x, dev (xx/xx/xxxx):
 -------------------------------------------------
+- #1144620 by drunken monkey, cmonnow: Fixed problems with umlauts, accented
+  characters, etc, in PostgreSQL.
 - #1390586 by Damien Tournoud, drunken monkey: Added support for OR facets.
 - #1658964 by figureone, drunken monkey: Fixed support for facets with count 0.
 - #2170681 by drumm: Improved fulltext search performance further.

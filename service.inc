@@ -548,18 +548,30 @@ class SearchApiDbService extends SearchApiAbstractService {
         }
         $this->connection->schema()->createTable($text_table, $table);
 
-        // Some DBMSs will need a character encoding and collation set.
-        switch ($this->connection->databaseType()) {
-          case 'mysql':
-            $this->connection->query("ALTER TABLE {{$text_table}} CONVERT TO CHARACTER SET 'utf8' COLLATE 'utf8_bin'");
-            break;
+        // Some DBMSs will need a character encoding and collation set. Since
+        // this largely circumvents Drupal's database layer (but isn't integral
+        // enough to failing completely when it doesn't work, we wrap it in a
+        // try/catch, to be on the safe side.
+        try {
+          switch ($this->connection->databaseType()) {
+            case 'mysql':
+              $this->connection->query("ALTER TABLE {{$text_table}} CONVERT TO CHARACTER SET 'utf8' COLLATE 'utf8_bin'");
+              break;
 
-          // @todo Add fixes for other DBMSs.
-          case 'oracle':
-          case 'pgsql':
-          case 'sqlite':
-          case 'sqlsrv':
-            break;
+            case 'pgsql':
+              $this->connection->query("ALTER TABLE {{$text_table}} ALTER COLUMN word SET DATA TYPE character varying(50) COLLATE \"C\"");
+              break;
+
+            // @todo Add fixes for other DBMSs.
+            case 'oracle':
+            case 'sqlite':
+            case 'sqlsrv':
+              break;
+          }
+        }
+        catch (PDOException $e) {
+          $vars['%index'] = $index->name;
+          watchdog_exception('search_api_db', $e, '%type while trying to change collation for the fulltext table of index %index: !message in %function (line %line of %file).', $vars);
         }
       }
 
