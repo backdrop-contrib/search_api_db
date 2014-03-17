@@ -632,7 +632,6 @@ class SearchApiDbTest extends DrupalWebTestCase {
     usort($results['search_api_facets']['type'], array($this, 'facetCompare'));
     $facet_match = _search_api_settings_equals($results['search_api_facets']['type'], $expected);
     $this->assertTrue($facet_match, 'Correct facets were returned');
-    debug($results['search_api_facets']['type']);
   }
 
   /**
