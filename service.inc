@@ -11,6 +11,11 @@
 class SearchApiDbService extends SearchApiAbstractService {
 
   /**
+   * Multiplier for scores to have precision when converted from float to int.
+   */
+  const SCORE_MULTIPLIER = 1000;
+
+  /**
    * The database connection to use for this server.
    *
    * @var DatabaseConnection
@@ -529,8 +534,10 @@ class SearchApiDbService extends SearchApiAbstractService {
             ),
             'score' => array(
               'description' => 'The score associated with this token.',
-              'type' => 'float',
+              'type' => 'int',
+              'unsigned' => TRUE,
               'not null' => TRUE,
+              'default' => 0,
             ),
           ),
           'indexes' => array(
@@ -760,7 +767,7 @@ class SearchApiDbService extends SearchApiAbstractService {
                 'item_id' => $id,
                 'field_name' => $field_name,
                 'word'    => $word['value'],
-                'score'   => $word['score'] * $boost,
+                'score'   => $word['score'] * $boost * self::SCORE_MULTIPLIER,
               );
             }
           }
@@ -1094,7 +1101,7 @@ class SearchApiDbService extends SearchApiAbstractService {
       foreach ($result as $row) {
         $results['results'][$row->item_id] = array(
           'id' => $row->item_id,
-          'score' => $row->score,
+          'score' => $row->score / self::SCORE_MULTIPLIER,
         );
       }
       if ($skip_count) {
@@ -1171,7 +1178,7 @@ class SearchApiDbService extends SearchApiAbstractService {
 
         $db_query = $this->createKeysQuery($keys, $fulltext_fields, $fields);
         if (is_array($keys) && !empty($keys['#negation'])) {
-          $db_query->addExpression(':score', 'score', array(':score' => 1));
+          $db_query->addExpression(':score', 'score', array(':score' => self::SCORE_MULTIPLIER));
           $db_query->distinct();
         }
       }
@@ -1189,7 +1196,7 @@ class SearchApiDbService extends SearchApiAbstractService {
     if (!isset($db_query)) {
       $db_query = $this->connection->select($fields['search_api_language']['table'], 't');
       $db_query->addField('t', 'item_id', 'item_id');
-      $db_query->addExpression(':score', 'score', array(':score' => 1));
+      $db_query->addExpression(':score', 'score', array(':score' => self::SCORE_MULTIPLIER));
       $db_query->distinct();
     }
 
@@ -1459,7 +1466,7 @@ class SearchApiDbService extends SearchApiAbstractService {
         $db_query = $this->connection->select($all_fields['search_api_language']['table'], 't');
         $db_query->addField('t', 'item_id', 'item_id');
         if (!$neg) {
-          $db_query->addExpression(':score', 'score', array(':score' => 1));
+          $db_query->addExpression(':score', 'score', array(':score' => self::SCORE_MULTIPLIER));
           $db_query->distinct();
         }
       }

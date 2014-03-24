@@ -258,6 +258,51 @@ function search_api_db_update_7105() {
 }
 
 /**
+ * Change full text score from float to int.
+ */
+function search_api_db_update_7106() {
+  // Get a connection for each service using Search API DB.
+  $servers_query = db_select('search_api_server', 's')
+    ->condition('s.class', 'search_api_db_service');
+  $servers_query->innerJoin('search_api_index', 'i', 'i.server = s.machine_name');
+  $servers_query->fields('s', array('options'));
+  $servers_query->fields('i', array('server', 'machine_name', 'item_type'));
+  $servers = $servers_query->execute();
+  $server_options = array();
+  foreach ($servers as $server) {
+    if (!isset($server_options[$server->server])) {
+      $server_options[$server->server] = unserialize($server->options);
+    }
+    $options = $server_options[$server->server];
+    list($key, $target) = explode(':', $options['database'], 2);
+    if (!empty($options['indexes'][$server->machine_name])) {
+      $connection = Database::getConnection($target, $key);
+      // Find name of text table.
+      foreach ($options['indexes'][$server->machine_name] as $field) {
+        if (search_api_is_text_type($field['type'])) {
+          $spec = array(
+            'description' => 'The score associated with this token.',
+            'type' => 'int',
+            'unsigned' => TRUE,
+            'not null' => TRUE,
+            'default' => 0,
+          );
+          // Add new field and poplate data.
+          $connection->schema()->addField($field['table'], 'score_int', $spec);
+          $connection->update($field['table'])
+            ->expression('score_int', 'score * 1000')
+            ->execute();
+          // Drop old column and move into place.
+          $connection->schema()->dropField($field['table'], 'score');
+          $connection->schema()->changeField($field['table'], 'score_int', 'score', $spec);
+          break;
+        }
+      }
+    }
+  }
+}
+
+/**
  * Finds a free table name within the given database.
  *
  * Slightly modified copy of SearchApiDbService::findFreeTable().

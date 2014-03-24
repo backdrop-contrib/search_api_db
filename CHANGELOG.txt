@@ -1,5 +1,6 @@
 Search API Database Search 1.x, dev (xx/xx/xxxx):
 -------------------------------------------------
+- #2207205 by drumm: Changed score from float to int.
 - #2140321 by drunken monkey: Fixed grouping error in PostgreSQL.
 - #2170689 by drumm: Added a (word, field_name) covering index on text tables.
 - #1144620 by drunken monkey, cmonnow: Fixed problems with umlauts, accented
