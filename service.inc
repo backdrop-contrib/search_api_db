@@ -1407,7 +1407,7 @@ class SearchApiDbService extends SearchApiAbstractService {
         $db_query->fields('t', array('item_id', 'score'));
       }
       else {
-        $db_query->fields('t', array('item_id', 'word', 'score'));
+        $db_query->fields('t', array('item_id', 'score', 'word'));
       }
       $db_query->condition('word', $words, 'IN');
       $db_query->condition('field_name', array_map(array(__CLASS__, 'getTextFieldName'), array_keys($fields)), 'IN');
