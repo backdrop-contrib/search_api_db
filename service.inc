@@ -764,10 +764,10 @@ class SearchApiDbService extends SearchApiAbstractService {
             $field_name = self::getTextFieldName($name);
             foreach ($words as $word) {
               $text_inserts[$table][] = array(
-                'item_id' => $id,
+                'item_id'    => $id,
                 'field_name' => $field_name,
-                'word'    => $word['value'],
-                'score'   => $word['score'] * $boost * self::SCORE_MULTIPLIER,
+                'word'       => $word['value'],
+                'score'      => (int) round($word['score'] * $boost * self::SCORE_MULTIPLIER),
               );
             }
           }
@@ -892,7 +892,7 @@ class SearchApiDbService extends SearchApiAbstractService {
           if ($v) {
             $ret[] = array(
               'value' => $v,
-              'score' => 1.0,
+              'score' => 1,
             );
           }
         }
