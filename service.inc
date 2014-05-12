@@ -1624,103 +1624,109 @@ class SearchApiDbService extends SearchApiAbstractService {
    *   An array of facets, as specified by the search_api_facets feature.
    */
   protected function getFacets(SearchApiQueryInterface $query, SelectQueryInterface $db_query) {
-    $table = $this->getTemporaryResultsTable($db_query);
-    if (!$table) {
-      return array();
-    }
-
-    $fields = $this->getFieldInfo($query->getIndex());
-    $ret = array();
-    foreach ($query->getOption('search_api_facets') as $key => $facet) {
-      if (empty($fields[$facet['field']])) {
-        $this->warnings[] = t('Unknown facet field @field.', array('@field' => $facet['field']));
-        continue;
+    try {
+      $table = $this->getTemporaryResultsTable($db_query);
+      if (!$table) {
+        return array();
       }
-      $field = $fields[$facet['field']];
 
-      if (empty($facet['operator']) || $facet['operator'] != 'or') {
-        // All the AND facets can use the main query.
-        $select = db_select($table, 't');
-      }
-      else {
-        // For OR facets, we need to build a different base query that excludes
-        // the facet filters applied to the facet.
-        $or_query = clone $query;
-        $filters = &$or_query->getFilter()->getFilters();
-        $tag = 'facet:' . $facet['field'];
-        foreach ($filters as $filter_id => $filter) {
-          if ($filter instanceof SearchApiQueryFilterInterface && $filter->hasTag($tag)) {
-            unset($filters[$filter_id]);
-          }
+      $fields = $this->getFieldInfo($query->getIndex());
+      $ret = array();
+      foreach ($query->getOption('search_api_facets') as $key => $facet) {
+        if (empty($fields[$facet['field']])) {
+          $this->warnings[] = t('Unknown facet field @field.', array('@field' => $facet['field']));
+          continue;
         }
-        $or_db_query = $this->createDbQuery($or_query, $fields);
-        $select = db_select($or_db_query, 't');
-      }
+        $field = $fields[$facet['field']];
 
-      // If "Include missing facet" is disabled, we use an INNER JOIN and add IS
-      // NOT NULL for shared tables.
-      $alias = $this->getTableAlias($field, $select, TRUE, $facet['missing'] ? 'leftJoin' : 'innerJoin');
-      $select->addField($alias, search_api_is_text_type($field['type']) ? 'word' : $field['column'], 'value');
-      if (!$facet['missing'] && !search_api_is_text_type($field['type'])) {
-        $select->isNotNull($alias . '.' . $field['column']);
-      }
-      $select->addExpression('COUNT(DISTINCT t.item_id)', 'num');
-      $select->groupBy('value');
-      $select->orderBy('num', 'DESC');
-
-      $limit = $facet['limit'];
-      if ((int) $limit > 0) {
-        $select->range(0, $limit);
-      }
-      if ($facet['min_count'] > 1) {
-        $select->having('num >= :count', array(':count' => $facet['min_count']));
-      }
-
-      $terms = array();
-      $values = array();
-      $has_missing = FALSE;
-      foreach ($select->execute() as $row) {
-        $terms[] = array(
-          'count' => $row->num,
-          'filter' => isset($row->value) ? '"' . $row->value . '"' : '!',
-        );
-        if (isset($row->value)) {
-          $values[] = $row->value;
+        if (empty($facet['operator']) || $facet['operator'] != 'or') {
+          // All the AND facets can use the main query.
+          $select = db_select($table, 't');
         }
         else {
-          $has_missing = TRUE;
+          // For OR facets, we need to build a different base query that excludes
+          // the facet filters applied to the facet.
+          $or_query = clone $query;
+          $filters = &$or_query->getFilter()->getFilters();
+          $tag = 'facet:' . $facet['field'];
+          foreach ($filters as $filter_id => $filter) {
+            if ($filter instanceof SearchApiQueryFilterInterface && $filter->hasTag($tag)) {
+              unset($filters[$filter_id]);
+            }
+          }
+          $or_db_query = $this->createDbQuery($or_query, $fields);
+          $select = db_select($or_db_query, 't');
         }
-      }
 
-      // If 'Minimum facet count' is set to 0 in the display options for this facet,
-      // we need to retrieve all facets, even ones that aren't matched in our search
-      // result set above. Here we SELECT all DISTINCT facets, and add in those
-      // facets that weren't added above.
-      if ($facet['min_count'] < 1) {
-        $select = $this->connection->select($field['table'], 't');
-        $select->addField('t', $field['column'], 'value');
-        $select->distinct();
-        if ($values) {
-          $select->condition($field['column'], $values, 'NOT IN');
+        // If "Include missing facet" is disabled, we use an INNER JOIN and add IS
+        // NOT NULL for shared tables.
+        $alias = $this->getTableAlias($field, $select, TRUE, $facet['missing'] ? 'leftJoin' : 'innerJoin');
+        $select->addField($alias, search_api_is_text_type($field['type']) ? 'word' : $field['column'], 'value');
+        if (!$facet['missing'] && !search_api_is_text_type($field['type'])) {
+          $select->isNotNull($alias . '.' . $field['column']);
         }
-        $select->isNotNull($field['column']);
+        $select->addExpression('COUNT(DISTINCT t.item_id)', 'num');
+        $select->groupBy('value');
+        $select->orderBy('num', 'DESC');
+
+        $limit = $facet['limit'];
+        if ((int) $limit > 0) {
+          $select->range(0, $limit);
+        }
+        if ($facet['min_count'] > 1) {
+          $select->having('num >= :count', array(':count' => $facet['min_count']));
+        }
+
+        $terms = array();
+        $values = array();
+        $has_missing = FALSE;
         foreach ($select->execute() as $row) {
           $terms[] = array(
-            'count' => 0,
-            'filter' => '"' . $row->value . '"',
+            'count' => $row->num,
+            'filter' => isset($row->value) ? '"' . $row->value . '"' : '!',
           );
+          if (isset($row->value)) {
+            $values[] = $row->value;
+          }
+          else {
+            $has_missing = TRUE;
+          }
         }
-        if ($facet['missing'] && !$has_missing) {
-          $terms[] = array(
-            'count' => 0,
-            'filter' => '!',
-          );
-        }
-      }
 
-      $ret[$key] = $terms;
+        // If 'Minimum facet count' is set to 0 in the display options for this facet,
+        // we need to retrieve all facets, even ones that aren't matched in our search
+        // result set above. Here we SELECT all DISTINCT facets, and add in those
+        // facets that weren't added above.
+        if ($facet['min_count'] < 1) {
+          $select = $this->connection->select($field['table'], 't');
+          $select->addField('t', $field['column'], 'value');
+          $select->distinct();
+          if ($values) {
+            $select->condition($field['column'], $values, 'NOT IN');
+          }
+          $select->isNotNull($field['column']);
+          foreach ($select->execute() as $row) {
+            $terms[] = array(
+              'count' => 0,
+              'filter' => '"' . $row->value . '"',
+            );
+          }
+          if ($facet['missing'] && !$has_missing) {
+            $terms[] = array(
+              'count' => 0,
+              'filter' => '!',
+            );
+          }
+        }
+
+        $ret[$key] = $terms;
+      }
+      return $ret;
     }
-    return $ret;
+    catch (PDOException $e) {
+      watchdog_exception('search_api_db', $e, '%type while trying to calculate facets: !message in %function (line %line of %file).');
+      return array();
+    }
   }
 
   /**
