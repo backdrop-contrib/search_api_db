@@ -97,6 +97,7 @@ class SearchApiDbService extends SearchApiAbstractService {
     $options = $this->options + array(
       'min_chars' => 1,
       'autocomplete' => array(),
+      'partial_matches' => FALSE,
     );
     $options['autocomplete'] += array(
       'suggest_suffix' => TRUE,
@@ -109,6 +110,13 @@ class SearchApiDbService extends SearchApiAbstractService {
       '#description' => t('The minimum number of characters a word must consist of to be indexed.'),
       '#options' => drupal_map_assoc(array(1, 2, 3, 4, 5, 6)),
       '#default_value' => $options['min_chars'],
+    );
+
+    $form['partial_matches'] = array(
+      '#type' => 'checkbox',
+      '#title' => t('Search on parts of a word'),
+      '#description' => t('Find keywords in parts of a word, too. (E.g., find results with "database" when searching for "base"). <strong>Caution:</strong> This can make searches much slower on large sites!'),
+      '#default_value' => $options['partial_matches'],
     );
 
     if (module_exists('search_api_autocomplete')) {
@@ -1409,7 +1417,26 @@ class SearchApiDbService extends SearchApiAbstractService {
       else {
         $db_query->fields('t', array('item_id', 'score', 'word'));
       }
-      $db_query->condition('word', $words, 'IN');
+
+      if (empty($this->options['partial_matches'])) {
+        $db_query->condition('word', $words, 'IN');
+      }
+      else {
+        $db_or = db_or();
+        $db_query->groupBy('t.item_id');
+        foreach ($words as $i => $word) {
+          $db_or->condition('t.word', '%' . db_like($word) . '%', 'LIKE');
+
+          // Add an expression for each keyword that shows whether the indexed
+          // word matches that particular keyword. That way we don't return a
+          // result multiple times if a single indexed word (partially) matches
+          // multiple keywords.
+          $alias = 'w' . $i;
+          $alias = $db_query->addExpression("t.word LIKE '%" . db_like($word) . "%'", $alias);
+          $db_query->groupBy($alias);
+        }
+        $db_query->condition($db_or);
+      }
       $db_query->condition('field_name', array_map(array(__CLASS__, 'getTextFieldName'), array_keys($fields)), 'IN');
     }
 
@@ -1515,7 +1542,6 @@ class SearchApiDbService extends SearchApiAbstractService {
    */
   protected function createFilterCondition(SearchApiQueryFilterInterface $filter, array $fields, SelectQueryInterface $db_query) {
     $cond = db_condition($filter->getConjunction());
-    $empty = TRUE;
     // Store whether a JOIN alrady occurred for a field, so we don't JOIN
     // repeatedly for OR filters.
     $first_join = array();
@@ -1525,12 +1551,10 @@ class SearchApiDbService extends SearchApiAbstractService {
       if (is_object($f)) {
         $c = $this->createFilterCondition($f, $fields, $db_query);
         if ($c) {
-          $empty = FALSE;
           $cond->condition($c);
         }
       }
       else {
-        $empty = FALSE;
         if (!isset($fields[$f[0]])) {
           throw new SearchApiException(t('Unknown field in filter clause: @field.', array('@field' => $f[0])));
         }
@@ -1545,19 +1569,12 @@ class SearchApiDbService extends SearchApiAbstractService {
         }
         if (search_api_is_text_type($field['type'])) {
           $keys = $this->prepareKeys($f[1]);
+          if (!isset($keys)) {
+            continue;
+          }
           $query = $this->createKeysQuery($keys, array($f[0] => $field), $fields);
-          // We don't need the score, so we remove it. The score might either be
-          // an expression or a field.
-          $query_expressions = &$query->getExpressions();
-          if ($query_expressions) {
-            $query_expressions = array();
-          }
-          else {
-            $query_fields = &$query->getFields();
-            unset($query_fields['score']);
-            unset($query_fields);
-          }
-          unset($query_expressions);
+          // We only want the item IDs, so we use the keys query as a nested query.
+          $query = $this->connection->select($query, 't')->fields('t', array('item_id'));
           $cond->condition('t.item_id', $query, $f[2] == '<>' || $f[2] == '!=' ? 'NOT IN' : 'IN');
         }
         else {
@@ -1579,7 +1596,7 @@ class SearchApiDbService extends SearchApiAbstractService {
         }
       }
     }
-    return $empty ? NULL : $cond;
+    return count($cond->conditions()) > 1 ? $cond : NULL;
   }
 
   /**
@@ -1752,6 +1769,10 @@ class SearchApiDbService extends SearchApiAbstractService {
     }
     $expressions = &$db_query->getExpressions();
     $expressions = array();
+
+    $group_by = &$db_query->getGroupBy();
+    $group_by = array();
+
     $db_query->distinct();
     if (!$db_query->preExecute()) {
       return FALSE;

@@ -1,5 +1,7 @@
 Search API Database Search 1.x, dev (xx/xx/xxxx):
 -------------------------------------------------
+- #1299238 by Johnny vd Laar, drunken monkey, JeroenT: Added the option to
+  return partial matches.
 - #1912332 by drunken monkey: Fixed error when facet calculation leads to
   exception.
 - #2231829 by krisahil, drunken monkey: Fixed indexed scores to be integers.
