@@ -1661,8 +1661,8 @@ class SearchApiDbService extends SearchApiAbstractService {
           $select = db_select($table, 't');
         }
         else {
-          // For OR facets, we need to build a different base query that excludes
-          // the facet filters applied to the facet.
+          // For OR facets, we need to build a different base query that
+          // excludes the facet filters applied to the facet.
           $or_query = clone $query;
           $filters = &$or_query->getFilter()->getFilters();
           $tag = 'facet:' . $facet['field'];
@@ -1675,8 +1675,8 @@ class SearchApiDbService extends SearchApiAbstractService {
           $select = db_select($or_db_query, 't');
         }
 
-        // If "Include missing facet" is disabled, we use an INNER JOIN and add IS
-        // NOT NULL for shared tables.
+        // If "Include missing facet" is disabled, we use an INNER JOIN and add
+        // IS NOT NULL for shared tables.
         $alias = $this->getTableAlias($field, $select, TRUE, $facet['missing'] ? 'leftJoin' : 'innerJoin');
         $select->addField($alias, search_api_is_text_type($field['type']) ? 'word' : $field['column'], 'value');
         if (!$facet['missing'] && !search_api_is_text_type($field['type'])) {
@@ -1710,10 +1710,10 @@ class SearchApiDbService extends SearchApiAbstractService {
           }
         }
 
-        // If 'Minimum facet count' is set to 0 in the display options for this facet,
-        // we need to retrieve all facets, even ones that aren't matched in our search
-        // result set above. Here we SELECT all DISTINCT facets, and add in those
-        // facets that weren't added above.
+        // If 'Minimum facet count' is set to 0 in the display options for this
+        // facet, we need to retrieve all facets, even ones that aren't matched
+        // in our search result set above. Here we SELECT all DISTINCT facets,
+        // and add in those facets that weren't added above.
         if ($facet['min_count'] < 1) {
           $select = $this->connection->select($field['table'], 't');
           $select->addField('t', $field['column'], 'value');
