@@ -1425,14 +1425,14 @@ class SearchApiDbService extends SearchApiAbstractService {
         $db_or = db_or();
         $db_query->groupBy('t.item_id');
         foreach ($words as $i => $word) {
-          $db_or->condition('t.word', '%' . db_like($word) . '%', 'LIKE');
+          $db_or->condition('t.word', '%' . $this->connection->escapeLike($word) . '%', 'LIKE');
 
           // Add an expression for each keyword that shows whether the indexed
           // word matches that particular keyword. That way we don't return a
           // result multiple times if a single indexed word (partially) matches
           // multiple keywords.
           $alias = 'w' . $i;
-          $alias = $db_query->addExpression("t.word LIKE '%" . db_like($word) . "%'", $alias);
+          $alias = $db_query->addExpression("t.word LIKE '%" . $this->connection->escapeLike($word) . "%'", $alias);
           $db_query->groupBy($alias);
         }
         $db_query->condition($db_or);
@@ -1658,7 +1658,7 @@ class SearchApiDbService extends SearchApiAbstractService {
 
         if (empty($facet['operator']) || $facet['operator'] != 'or') {
           // All the AND facets can use the main query.
-          $select = db_select($table, 't');
+          $select = $this->connection->select($table, 't');
         }
         else {
           // For OR facets, we need to build a different base query that
@@ -1672,7 +1672,7 @@ class SearchApiDbService extends SearchApiAbstractService {
             }
           }
           $or_db_query = $this->createDbQuery($or_query, $fields);
-          $select = db_select($or_db_query, 't');
+          $select = $this->connection->select($or_db_query, 't');
         }
 
         // If "Include missing facet" is disabled, we use an INNER JOIN and add
