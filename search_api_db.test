@@ -274,8 +274,7 @@ class SearchApiDbTest extends DrupalWebTestCase {
       array('count' => 2, 'filter' => '"item"'),
       array('count' => 1, 'filter' => '!'),
     );
-    $facet_match = _search_api_settings_equals($results['search_api_facets']['type'], $expected);
-    $this->assertTrue($facet_match, 'Correct OR facets were returned');
+    $this->assertEqual($results['search_api_facets']['type'], $expected, 'Correct OR facets were returned');
 
     $query = $this->buildSearch();
     $filter = $query->createFilter('OR', array('facet:type'));
@@ -299,8 +298,7 @@ class SearchApiDbTest extends DrupalWebTestCase {
       array('count' => 2, 'filter' => '"article"'),
       array('count' => 2, 'filter' => '"item"'),
     );
-    $facet_match = _search_api_settings_equals($results['search_api_facets']['type'], $expected);
-    $this->assertTrue($facet_match, 'Correct OR facets were returned');
+    $this->assertEqual($results['search_api_facets']['type'], $expected, 'Correct OR facets were returned');
   }
 
   protected function editServer() {
@@ -555,8 +553,7 @@ class SearchApiDbTest extends DrupalWebTestCase {
       array('count' => 1, 'filter' => '!'),
     );
     usort($results['search_api_facets']['type'], array($this, 'facetCompare'));
-    $facet_match = _search_api_settings_equals($results['search_api_facets']['type'], $expected);
-    $this->assertTrue($facet_match, 'Correct facets were returned');
+    $this->assertEqual($results['search_api_facets']['type'], $expected, 'Correct facets were returned');
 
     $query = $this->buildSearch();
     $facets['type']['missing'] = FALSE;
@@ -568,8 +565,7 @@ class SearchApiDbTest extends DrupalWebTestCase {
       array('count' => 2, 'filter' => '"item"'),
     );
     usort($results['search_api_facets']['type'], array($this, 'facetCompare'));
-    $facet_match = _search_api_settings_equals($results['search_api_facets']['type'], $expected);
-    $this->assertTrue($facet_match, 'Correct facets were returned');
+    $this->assertEqual($results['search_api_facets']['type'], $expected, 'Correct facets were returned');
 
     // Regression tests for #2111753.
     $keys = array(
@@ -706,8 +702,7 @@ class SearchApiDbTest extends DrupalWebTestCase {
       array('count' => 0, 'filter' => '"item"'),
     );
     usort($results['search_api_facets']['type'], array($this, 'facetCompare'));
-    $facet_match = _search_api_settings_equals($results['search_api_facets']['type'], $expected);
-    $this->assertTrue($facet_match, 'Correct facets were returned');
+    $this->assertEqual($results['search_api_facets']['type'], $expected, 'Correct facets were returned');
   }
 
   /**
