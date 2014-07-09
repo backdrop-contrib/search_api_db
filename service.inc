@@ -107,7 +107,6 @@ class SearchApiDbService extends SearchApiAbstractService {
       $form = array(
         'database' => array(
           '#type' => 'value',
-          '#title' => t('Database'), // Slight hack for the "View server" page.
           '#value' => $this->options['database'],
         ),
         'database_text' => array(
@@ -177,8 +176,67 @@ class SearchApiDbService extends SearchApiAbstractService {
       'search_api_autocomplete' => TRUE,
       'search_api_facets' => TRUE,
       'search_api_facets_operator_or' => TRUE,
+      'search_api_service_extra' => TRUE,
     );
     return isset($supported[$feature]);
+  }
+
+  /**
+   * Overrides SearchApiAbstractService::viewSettings().
+   *
+   * Returns an empty string since information is instead added via
+   * getExtraInformation().
+   */
+  public function viewSettings() {
+    return '';
+  }
+
+  /**
+   * {@inheritdoc}
+   */
+  public function getExtraInformation() {
+    // Set default settings.
+    $options = $this->options + array(
+      'min_chars' => 1,
+      'partial_matches' => FALSE,
+    );
+
+    $info = array();
+
+    $info[] = array(
+      'label' => t('Database'),
+      'info' => check_plain(str_replace(':', ' > ', $options['database'])),
+    );
+    if ($options['min_chars'] > 1) {
+      $info[] = array(
+        'label' => t('Minimum word length'),
+        'info' => $options['min_chars'],
+      );
+    }
+    $info[] = array(
+      'label' => t('Search on parts of a word'),
+      'info' => $options['partial_matches'] ? t('enabled') : t('disabled'),
+    );
+    if (!empty($options['autocomplete'])) {
+      $options['autocomplete'] += array(
+        'suggest_suffix' => TRUE,
+        'suggest_words' => TRUE,
+      );
+      $autocomplete_modes = array();
+      if ($options['autocomplete']['suggest_suffix']) {
+        $autocomplete_modes[] = t('Suggest word endings');
+      }
+      if ($options['autocomplete']['suggest_words']) {
+        $autocomplete_modes[] = t('Suggest additional words');
+      }
+      $autocomplete_modes = $autocomplete_modes ? implode('; ', $autocomplete_modes) : t('none');
+      $info[] = array(
+        'label' => t('Autocomplete suggestions'),
+        'info' => $autocomplete_modes,
+      );
+    }
+
+    return $info;
   }
 
   /**
