@@ -21,7 +21,7 @@
  *
  * @see SearchApiDbService::preQuery()
  */
-function hook_search_api_db_query(SelectQueryInterface &$db_query, SearchApiQueryInterface $query) {
+function hook_search_api_db_query_alter(SelectQueryInterface &$db_query, SearchApiQueryInterface $query) {
   // If the option was set on the query, add additional SQL conditions.
   if ($custom = $query->getOption('custom_sql_conditions')) {
     foreach ($custom as $condition) {

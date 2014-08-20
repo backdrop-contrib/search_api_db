@@ -1690,7 +1690,7 @@ class SearchApiDbService extends SearchApiAbstractService {
    * @param SearchApiQueryInterface $query
    *   The search query that is being executed.
    *
-   * @see hook_search_api_db_query()
+   * @see hook_search_api_db_query_alter()
    */
   protected function preQuery(SelectQueryInterface &$db_query, SearchApiQueryInterface $query) {
   }
