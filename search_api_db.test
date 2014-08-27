@@ -274,6 +274,7 @@ class SearchApiDbTest extends DrupalWebTestCase {
       array('count' => 2, 'filter' => '"item"'),
       array('count' => 1, 'filter' => '!'),
     );
+    usort($results['search_api_facets']['type'], array($this, 'facetCompare'));
     $this->assertEqual($results['search_api_facets']['type'], $expected, 'Correct OR facets were returned');
 
     $query = $this->buildSearch();
@@ -298,6 +299,7 @@ class SearchApiDbTest extends DrupalWebTestCase {
       array('count' => 2, 'filter' => '"article"'),
       array('count' => 2, 'filter' => '"item"'),
     );
+    usort($results['search_api_facets']['type'], array($this, 'facetCompare'));
     $this->assertEqual($results['search_api_facets']['type'], $expected, 'Correct OR facets were returned');
   }
 
@@ -725,9 +727,9 @@ class SearchApiDbTest extends DrupalWebTestCase {
   /**
    * Compares two facets for ordering.
    *
-   * Used as a callback for usort() in regressionTests().
+   * Used as a callback for usort() in checkFacets() and regressionTests().
    */
-  protected function facetCompare($a, $b) {
+  public function facetCompare($a, $b) {
     if ($a['count'] != $b['count']) {
       return $b['count'] - $a['count'];
     }
