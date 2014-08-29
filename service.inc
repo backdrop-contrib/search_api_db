@@ -1822,8 +1822,8 @@ class SearchApiDbService extends SearchApiAbstractService {
 
         // Add tags and metadata.
         $select->addTag('search_api_db_facet');
-        $db_query->addMetaData('search_api_query', $query);
-        $db_query->addMetaData('search_api_db_fields', $fields);
+        $select->addMetaData('search_api_query', $query);
+        $select->addMetaData('search_api_db_fields', $fields);
         $select->addMetaData('search_api_db_facet', $facet);
 
         // If "Include missing facet" is disabled, we use an INNER JOIN and add
@@ -1876,8 +1876,8 @@ class SearchApiDbService extends SearchApiAbstractService {
 
           // Add tags and metadata.
           $select->addTag('search_api_db_facet_all');
-          $db_query->addMetaData('search_api_query', $query);
-          $db_query->addMetaData('search_api_db_fields', $fields);
+          $select->addMetaData('search_api_query', $query);
+          $select->addMetaData('search_api_db_fields', $fields);
           $select->addMetaData('search_api_db_facet', $facet);
 
           foreach ($select->execute() as $row) {
