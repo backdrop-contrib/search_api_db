@@ -330,11 +330,11 @@ class SearchApiDbService extends SearchApiAbstractService {
       $maxbytes -= strlen($db_prefix);
     }
 
-    $base = $table = mb_strcut($prefix . drupal_strtolower(preg_replace('/[^a-z0-9]/i', '_', $name)), 0, $maxbytes);
+    $base = $table = self::mbStrcut($prefix . drupal_strtolower(preg_replace('/[^a-z0-9]/i', '_', $name)), 0, $maxbytes);
     $i = 0;
     while ($this->connection->schema()->tableExists($table)) {
       $suffix = '_' . ++$i;
-      $table = mb_strcut($base, 0, $maxbytes - strlen($suffix)) . $suffix;
+      $table = self::mbStrcut($base, 0, $maxbytes - strlen($suffix)) . $suffix;
     }
     return $table;
   }
@@ -359,13 +359,13 @@ class SearchApiDbService extends SearchApiAbstractService {
   protected function findFreeColumn($table, $column) {
     $maxbytes = 62;
 
-    $base = $name = mb_strcut(drupal_strtolower(preg_replace('/[^a-z0-9]/i', '_', $column)), 0, $maxbytes);
+    $base = $name = self::mbStrcut(drupal_strtolower(preg_replace('/[^a-z0-9]/i', '_', $column)), 0, $maxbytes);
     // If the table does not exist yet, the initial name is not taken.
     if ($this->connection->schema()->tableExists($table)) {
       $i = 0;
       while ($this->connection->schema()->fieldExists($table, $name)) {
         $suffix = '_' . ++$i;
-        $name = mb_strcut($base, 0, $maxbytes - strlen($suffix)) . $suffix;
+        $name = self::mbStrcut($base, 0, $maxbytes - strlen($suffix)) . $suffix;
       }
     }
     return $name;
@@ -1018,7 +1018,7 @@ class SearchApiDbService extends SearchApiAbstractService {
                   watchdog('search_api_db', 'An overlong word (more than 50 characters) was encountered while indexing: %word.<br />' .
                       'Database search servers currently cannot index such words correctly – the word was therefore trimmed to the allowed length.',
                       array('%word' => $word), WATCHDOG_WARNING);
-                  $word = mb_strcut($word, 0, 50);
+                  $word = self::mbStrcut($word, 0, 50);
                 }
                 $tokens[] = array(
                   'value' => $word,
@@ -1040,7 +1040,7 @@ class SearchApiDbService extends SearchApiAbstractService {
           return date('c', $value);
         }
         if (strlen($value) > 255) {
-          $value = mb_strcut($value, 0, 255);
+          $value = self::mbStrcut($value, 0, 255);
           watchdog('search_api_db', 'An overlong value (more than 255 characters) was encountered while indexing: %value.<br />' .
               'Database search servers currently cannot index such values correctly – the value was therefore trimmed to the allowed length.',
               array('%value' => $value), WATCHDOG_WARNING);
@@ -2109,6 +2109,31 @@ class SearchApiDbService extends SearchApiAbstractService {
       }
     }
     return $fields;
+  }
+
+  /**
+   * Emulates self::mbStrcut() if that is not available.
+   *
+   * Though the Mbstring PHP extension is recommended for running Drupal, it is
+   * not required. Therefore, we have to wrap calls to its functions.
+   *
+   * @param string $str
+   *   The string being cut.
+   * @param int $start
+   *   Starting position in bytes.
+   * @param int|null $length
+   *   (optional) Length in bytes. If NULL is passed, extract all bytes to the
+   *   end of the string.
+   *
+   * @return string
+   *   The portion of $str specified by the $start and $length parameters.
+   */
+  protected static function mbStrcut($str, $start, $length = NULL) {
+    global $multibyte;
+    if ($multibyte == UNICODE_MULTIBYTE) {
+      return mb_strcut($str, $start, $length);
+    }
+    return substr($str, $start, $length);
   }
 
 }
