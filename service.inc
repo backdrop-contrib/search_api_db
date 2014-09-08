@@ -1985,6 +1985,10 @@ class SearchApiDbService extends SearchApiAbstractService {
     $suggestions = array();
     $passes = array();
 
+    // Make the input lowercase as the indexed data is also all lowercase.
+    $user_input = drupal_strtolower($user_input);
+    $incomplete_key = drupal_strtolower($incomplete_key);
+
     // Decide which methods we want to use.
     if ($incomplete_key && $settings['suggest_suffix']) {
       $passes[] = 1;
