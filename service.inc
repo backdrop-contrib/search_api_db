@@ -1424,7 +1424,7 @@ class SearchApiDbService extends SearchApiAbstractService {
     $nested = array();
     $negated = array();
     $db_query = NULL;
-    $mul_words = FALSE;
+    $word_hits = array();
     $neg_nested = $neg && $conj == 'AND';
 
     foreach ($keys as $i => $key) {
@@ -1447,13 +1447,13 @@ class SearchApiDbService extends SearchApiAbstractService {
       }
     }
     $subs = count($words) + count($nested);
-    $not_nested = ($subs <= 1 && count($fields) == 1) || ($neg && $conj == 'OR' && !$negated);
+    $mul_words = count($words) > 1;
+    $not_nested = ($subs <= 1 && !$mul_words) || ($neg && $conj == 'OR' && !$negated);
 
     if ($words) {
       // All text fields in the index share a table. Get name from the first.
       $field = reset($fields);
       $db_query = $this->connection->select($field['table'], 't');
-      $mul_words = count($words) > 1;
       if ($neg_nested) {
         $db_query->fields('t', array('item_id', 'word'));
       }
@@ -1461,10 +1461,15 @@ class SearchApiDbService extends SearchApiAbstractService {
         $db_query->fields('t', array('item_id'));
       }
       elseif ($not_nested) {
-        $db_query->fields('t', array('item_id', 'score'));
+        $db_query->fields('t', array('item_id'));
+        $db_query->addExpression('SUM(score)', 'score');
+        $db_query->groupBy('item_id');
       }
       else {
-        $db_query->fields('t', array('item_id', 'score', 'word'));
+        $db_query->fields('t', array('item_id', 'word'));
+        $db_query->addExpression('SUM(score)', 'score');
+        $db_query->groupBy('item_id');
+        $db_query->groupBy('word');
       }
 
       if (empty($this->options['partial_matches'])) {
@@ -1472,17 +1477,26 @@ class SearchApiDbService extends SearchApiAbstractService {
       }
       else {
         $db_or = db_or();
-        $db_query->groupBy('t.item_id');
+        // GROUP BY all existing non-grouped, non-aggregated columns – except
+        // "word", which we remove since it will be useless to us in this case.
+        $columns = &$db_query->getFields();
+        unset($columns['word']);
+        foreach (array_keys($columns) as $column) {
+          $db_query->groupBy($column);
+        }
+
         foreach ($words as $i => $word) {
           $db_or->condition('t.word', '%' . $this->connection->escapeLike($word) . '%', 'LIKE');
 
           // Add an expression for each keyword that shows whether the indexed
           // word matches that particular keyword. That way we don't return a
           // result multiple times if a single indexed word (partially) matches
-          // multiple keywords.
+          // multiple keywords. We also remember the column name so we can
+          // afterwards verify that each word matched at least once.
           $alias = 'w' . $i;
           $alias = $db_query->addExpression("t.word LIKE '%" . $this->connection->escapeLike($word) . "%'", $alias);
           $db_query->groupBy($alias);
+          $word_hits[] = $alias;
         }
         $db_query->condition($db_or);
       }
@@ -1522,7 +1536,13 @@ class SearchApiDbService extends SearchApiAbstractService {
         if (!$db_query->getGroupBy()) {
           $db_query->groupBy('t.item_id');
         }
-        if ($mul_words) {
+        if ($word_hits) {
+          // Simply check whether each word matched at least once.
+          foreach ($word_hits as $column) {
+            $db_query->having("SUM($column) >= 1");
+          }
+        }
+        elseif ($mul_words) {
           $db_query->having('COUNT(DISTINCT t.word) >= ' . $var, array($var => $subs));
         }
         else {
@@ -1842,7 +1862,7 @@ class SearchApiDbService extends SearchApiAbstractService {
           $select->range(0, $limit);
         }
         if ($facet['min_count'] > 1) {
-          $select->having('num >= :count', array(':count' => $facet['min_count']));
+          $select->having('COUNT(DISTINCT t.item_id) >= :count', array(':count' => $facet['min_count']));
         }
 
         $terms = array();
@@ -1927,6 +1947,11 @@ class SearchApiDbService extends SearchApiAbstractService {
     }
     $expressions = &$db_query->getExpressions();
     $expressions = array();
+
+    // If there's a GROUP BY for item_id, we leave that, all others need to be
+    // discarded.
+    $group_by = &$db_query->getGroupBy();
+    $group_by = array_intersect_key($group_by, array('t.item_id' => TRUE));
 
     $db_query->distinct();
     if (!$db_query->preExecute()) {
@@ -2045,7 +2070,7 @@ class SearchApiDbService extends SearchApiAbstractService {
       $db_query->addExpression('COUNT(DISTINCT item_id)', 'results');
       $db_query->fields('t', array('word'))
         ->groupBy('word')
-        ->having('results <= :max', array(':max' => $max_occurrences))
+        ->having('COUNT(DISTINCT item_id) <= :max', array(':max' => $max_occurrences))
         ->orderBy('results', 'DESC')
         ->range(0, ceil($limit));
       $incomp_len = strlen($incomplete_key);

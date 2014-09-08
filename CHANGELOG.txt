@@ -1,5 +1,7 @@
 Search API Database Search 1.x, dev (xx/xx/xxxx):
 -------------------------------------------------
+- #2305107 by drunken monkey: Fixed standards-compliance of the generated SQL
+  queries.
 - #2286329 by drunken monkey: Fixed incorrect facet counts for multi-word
   search.
 - #2237829 by drunken monkey: Added a hook and methods for more specific
