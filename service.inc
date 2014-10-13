@@ -769,7 +769,9 @@ class SearchApiDbService extends SearchApiAbstractService {
       }
       catch (Exception $e) {
         // We just log the error, hoping we can index the other items.
-        watchdog('search_api_db', check_plain($e->getMessage()), NULL, WATCHDOG_WARNING);
+        $vars['%item_id'] = $id;
+        $vars['%index'] = $index->name;
+        watchdog_exception('search_api_db', $e, '%type while trying to index item %item_id on index %index: !message in %function (line %line of %file).', $vars);
       }
     }
     return $indexed;
