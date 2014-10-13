@@ -99,7 +99,7 @@ class SearchApiDbTest extends DrupalWebTestCase {
       'title' => 'bar baz',
       'body' => 'foo',
       'type' => 'article',
-      'keywords' => 'orange,strawberry,grape,banana',
+      'keywords' => 'orange,strawberry,grape,banana,orange,Orange',
     ));
     $count = db_query('SELECT COUNT(*) FROM {search_api_test}')->fetchField() - $count;
     $this->assertEqual($count, 5, "$count items inserted.");
