@@ -1,5 +1,6 @@
 Search API Database Search 1.x, dev (xx/xx/xxxx):
 -------------------------------------------------
+- #2346459 by Proteo: Fixed PostgreSQL compatibility issue.
 
 Search API Database Search 1.4 (09/08/2014):
 --------------------------------------------

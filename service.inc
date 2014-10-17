@@ -1465,13 +1465,13 @@ class SearchApiDbService extends SearchApiAbstractService {
       elseif ($not_nested) {
         $db_query->fields('t', array('item_id'));
         $db_query->addExpression('SUM(score)', 'score');
-        $db_query->groupBy('item_id');
+        $db_query->groupBy('t.item_id');
       }
       else {
         $db_query->fields('t', array('item_id', 'word'));
         $db_query->addExpression('SUM(score)', 'score');
-        $db_query->groupBy('item_id');
-        $db_query->groupBy('word');
+        $db_query->groupBy('t.item_id');
+        $db_query->groupBy('t.word');
       }
 
       if (empty($this->options['partial_matches'])) {
