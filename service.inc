@@ -1630,12 +1630,13 @@ class SearchApiDbService extends SearchApiAbstractService {
           throw new SearchApiException(t('Unknown field in filter clause: @field.', array('@field' => $f[0])));
         }
         $field = $fields[$f[0]];
+        $not_equals = $f[2] == '<>' || $f[2] == '!=';
         // If the field is in its own table, we have to check for NULL values in
         // a special way (i.e., check for missing entries in that table).
         if ($f[1] === NULL && $field['column'] === 'value') {
           $query = $this->connection->select($field['table'], 't')
             ->fields('t', array('item_id'));
-          $cond->condition('t.item_id', $query, $f[2] == '<>' || $f[2] == '!=' ? 'IN' : 'NOT IN');
+          $cond->condition('t.item_id', $query, $not_equals ? 'IN' : 'NOT IN');
           continue;
         }
         if (search_api_is_text_type($field['type'])) {
@@ -1646,7 +1647,7 @@ class SearchApiDbService extends SearchApiAbstractService {
           $query = $this->createKeysQuery($keys, array($f[0] => $field), $fields);
           // We only want the item IDs, so we use the keys query as a nested query.
           $query = $this->connection->select($query, 't')->fields('t', array('item_id'));
-          $cond->condition('t.item_id', $query, $f[2] == '<>' || $f[2] == '!=' ? 'NOT IN' : 'IN');
+          $cond->condition('t.item_id', $query, $not_equals ? 'NOT IN' : 'IN');
         }
         else {
           $new_join = search_api_is_list_type($field['type'])
@@ -1657,12 +1658,21 @@ class SearchApiDbService extends SearchApiAbstractService {
             $first_join[$f[0]] = TRUE;
           }
           $column = $tables[$f[0]] . '.' . $field['column'];
-          if ($f[1] !== NULL) {
-            $cond->condition($column, $f[1], $f[2]);
-          }
-          else {
+          if ($f[1] === NULL) {
             $method = ($f[2] == '=') ? 'isNull' : 'isNotNull';
             $cond->$method($column);
+          }
+          elseif ($not_equals && search_api_is_list_type($field['type'])) {
+            // The situation is more complicated for multi-valued fields, since
+            // we must make sure that results are excluded if ANY of the field's
+            // values equals the one given in this condition.
+            $query = $this->connection->select($field['table'], 't')
+              ->fields('t', array('item_id'))
+              ->condition($field['column'], $f[1]);
+            $cond->condition('t.item_id', $query, 'NOT IN');
+          }
+          else {
+            $cond->condition($column, $f[1], $f[2]);
           }
         }
       }

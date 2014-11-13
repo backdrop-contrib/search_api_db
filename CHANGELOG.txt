@@ -1,5 +1,7 @@
 Search API Database Search 1.x, dev (xx/xx/xxxx):
 -------------------------------------------------
+- #2361329 by drunken monkey: Fixed behavior of "is not" conditions on
+  multi-valued fields.
 - #2346459 by Proteo: Fixed PostgreSQL compatibility issue.
 
 Search API Database Search 1.4 (09/08/2014):

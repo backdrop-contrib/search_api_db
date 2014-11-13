@@ -454,6 +454,12 @@ class SearchApiDbTest extends DrupalWebTestCase {
     $this->assertEqual($results['ignored'], array(), 'No keys were ignored.');
     $this->assertEqual($results['warnings'], array(), 'Warning displayed.');
 
+    $results = $this->buildSearch()->condition('keywords', 'orange', '<>')->execute();
+    $this->assertEqual($results['result count'], 2, 'Negated filter on multi-valued field returned correct number of results.');
+    $this->assertEqual(array_keys($results['results']), array(3, 4), 'Negated filter on multi-valued field returned correct result.');
+    $this->assertEqual($results['ignored'], array(), 'No keys were ignored.');
+    $this->assertEqual($results['warnings'], array(), 'Warning displayed.');
+
     $filters = array(
       'keywords,orange',
       'keywords,apple',
@@ -467,6 +473,12 @@ class SearchApiDbTest extends DrupalWebTestCase {
     $results = $this->buildSearch()->condition('keywords', NULL)->execute();
     $this->assertEqual($results['result count'], 1, 'Query with NULL filter returned correct number of results.');
     $this->assertEqual(array_keys($results['results']), array(3), 'Query with NULL filter returned correct result.');
+    $this->assertEqual($results['ignored'], array(), 'No keys were ignored.');
+    $this->assertEqual($results['warnings'], array(), 'No warnings were displayed.');
+
+    $results = $this->buildSearch()->condition('keywords', NULL, '<>')->execute();
+    $this->assertEqual($results['result count'], 4, 'Query with NOT NULL filter returned correct number of results.');
+    $this->assertEqual(array_keys($results['results']), array(1, 2, 4, 5), 'Query with NOT NULL filter returned correct result.');
     $this->assertEqual($results['ignored'], array(), 'No keys were ignored.');
     $this->assertEqual($results['warnings'], array(), 'No warnings were displayed.');
   }
