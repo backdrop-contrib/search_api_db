@@ -2013,7 +2013,7 @@ class SearchApiDbService extends SearchApiAbstractService {
 
     // We want about half of the suggestions from each enabled method.
     $limit = $query->getOption('limit', 10);
-    $limit /= count($passes);
+    $limit /= ceil(count($passes));
 
     // Also collect all keywords already contained in the query so we don't
     // suggest them.
@@ -2026,7 +2026,13 @@ class SearchApiDbService extends SearchApiAbstractService {
       if ($pass == 2 && $incomplete_key) {
         $query->keys($user_input);
       }
+      // To avoid suggesting incomplete words, we have to temporarily disable
+      // the "partial_matches" option. (There should be no way we'll save the
+      // server during the createDbQuery() call, so this should be safe.)
+      $options = $this->options;
+      $this->options['partial_matches'] = FALSE;
       $db_query = $this->createDbQuery($query, $fields);
+      $this->options = $options;
 
       // Add additional tags and metadata.
       $db_query->addTag('search_api_db_autocomplete');
@@ -2049,7 +2055,7 @@ class SearchApiDbService extends SearchApiAbstractService {
       else {
         $table = $this->getTemporaryResultsTable($db_query);
         if (!$table) {
-          return NULL;
+          return array();
         }
         $all_results = $this->connection->select($table, 't')
           ->fields('t', array('item_id'));
@@ -2064,6 +2070,7 @@ class SearchApiDbService extends SearchApiAbstractService {
         continue;
       }
 
+      $word_query = NULL;
       foreach ($query->getFields() as $field) {
         if (!isset($fields[$field]) || !search_api_is_text_type($fields[$field]['type'])) {
           continue;
@@ -2082,13 +2089,16 @@ class SearchApiDbService extends SearchApiAbstractService {
           $word_query->union($field_query);
         }
       }
+      if (!$word_query) {
+        return array();
+      }
       $db_query = $this->connection->select($word_query, 't');
       $db_query->addExpression('COUNT(DISTINCT item_id)', 'results');
       $db_query->fields('t', array('word'))
         ->groupBy('word')
         ->having('COUNT(DISTINCT item_id) <= :max', array(':max' => $max_occurrences))
         ->orderBy('results', 'DESC')
-        ->range(0, ceil($limit));
+        ->range(0, $limit);
       $incomp_len = strlen($incomplete_key);
       foreach ($db_query->execute() as $row) {
         $suffix = ($pass == 1) ? substr($row->word, $incomp_len) : ' ' . $row->word;
