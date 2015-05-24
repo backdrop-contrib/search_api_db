@@ -2011,9 +2011,14 @@ class SearchApiDbService extends SearchApiAbstractService {
       $passes[] = 2;
     }
 
+    if (!$passes) {
+      return array();
+    }
+
     // We want about half of the suggestions from each enabled method.
     $limit = $query->getOption('limit', 10);
-    $limit /= ceil(count($passes));
+    $limit /= count($passes);
+    $limit = ceil($limit);
 
     // Also collect all keywords already contained in the query so we don't
     // suggest them.
