@@ -1,5 +1,6 @@
 Search API Database Search 1.x, dev (xx/xx/xxxx):
 -------------------------------------------------
+- #2403275 by drunken monkey: Fixed issue with too many indexed fields.
 - #2400795 by drunken monkey: Fixed partial words being suggested for
   autocompletion.
 - #2361329 by drunken monkey: Fixed behavior of "is not" conditions on

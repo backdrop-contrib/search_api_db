@@ -436,11 +436,18 @@ class SearchApiDbService extends SearchApiAbstractService {
       $db_field['not null'] = TRUE;
     }
     $this->connection->schema()->addField($db['table'], $db['column'], $db_field);
-    if ($db_field['type'] === 'varchar') {
-      $this->connection->schema()->addIndex($db['table'], $db['column'], array(array($db['column'], 10)));
+    try {
+      if ($db_field['type'] === 'varchar') {
+        $this->connection->schema()->addIndex($db['table'], $db['column'], array(array($db['column'], 10)));
+      }
+      else {
+        $this->connection->schema()->addIndex($db['table'], $db['column'], array($db['column']));
+      }
     }
-    else {
-      $this->connection->schema()->addIndex($db['table'], $db['column'], array($db['column']));
+    catch (PDOException $e) {
+      $variables['%field'] = $field['name'];
+      $variables['%index'] = $index->name;
+      watchdog_exception('search_api_db', $e, '%type while trying to add DBMS index for the column of field %field on index %index: !message in %function (line %line of %file).', $variables, WATCHDOG_WARNING);
     }
     if ($new_table) {
       if (search_api_is_list_type($field['type'])) {
