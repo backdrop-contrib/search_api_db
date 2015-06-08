@@ -1,5 +1,7 @@
 Search API Database Search 1.x, dev (xx/xx/xxxx):
 -------------------------------------------------
+- #2428693 by drunken monkey, adamsro: Fixed update hook 7104 to not invoke any
+  hooks.
 - #2403275 by drunken monkey: Fixed issue with too many indexed fields.
 - #2400795 by drunken monkey: Fixed partial words being suggested for
   autocompletion.
