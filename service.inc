@@ -681,7 +681,7 @@ class SearchApiDbService extends SearchApiAbstractService {
 
         // Some DBMSs will need a character encoding and collation set. Since
         // this largely circumvents Drupal's database layer (but isn't integral
-        // enough to failing completely when it doesn't work, we wrap it in a
+        // enough to fail completely when it doesn't work), we wrap it in a
         // try/catch, to be on the safe side.
         try {
           switch ($this->connection->databaseType()) {
