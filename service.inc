@@ -2120,7 +2120,8 @@ class SearchApiDbService extends SearchApiAbstractService {
         }
         $field_query = $this->connection->select($fields[$field]['table'], 't')
           ->fields('t', array('word', 'item_id'))
-          ->condition('item_id', $all_results, 'IN');
+          ->condition('item_id', $all_results, 'IN')
+          ->condition('field_name', $this->getTextFieldName($field));
         if ($pass == 1) {
           $field_query->condition('word', $incomplete_like, 'LIKE')
             ->condition('word', $keys, 'NOT IN');
