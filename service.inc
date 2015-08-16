@@ -1898,9 +1898,13 @@ class SearchApiDbService extends SearchApiAbstractService {
 
         // If "Include missing facet" is disabled, we use an INNER JOIN and add
         // IS NOT NULL for shared tables.
+        $is_text_type = search_api_is_text_type($field['type']);
         $alias = $this->getTableAlias($field, $select, TRUE, $facet['missing'] ? 'leftJoin' : 'innerJoin');
-        $select->addField($alias, search_api_is_text_type($field['type']) ? 'word' : $field['column'], 'value');
-        if (!$facet['missing'] && !search_api_is_text_type($field['type'])) {
+        $select->addField($alias, $is_text_type ? 'word' : $field['column'], 'value');
+        if ($is_text_type) {
+          $select->condition("$alias.field_name", $this->getTextFieldName($facet['field']));
+        }
+        if (!$facet['missing'] && !$is_text_type) {
           $select->isNotNull($alias . '.' . $field['column']);
         }
         $select->addExpression('COUNT(DISTINCT t.item_id)', 'num');
