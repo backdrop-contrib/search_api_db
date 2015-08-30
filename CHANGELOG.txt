@@ -1,3 +1,6 @@
+Search API Database Search 1.x, dev (xx/xx/xxxx):
+-------------------------------------------------
+
 Search API Database Search 1.5 (2015-08-30):
 --------------------------------------------
 - #2469547 by drunken monkey: Fixed facets on fulltext fields.
