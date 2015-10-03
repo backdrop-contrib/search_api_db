@@ -1385,7 +1385,12 @@ class SearchApiDbService extends SearchApiAbstractService {
       $words = preg_split('/[^\p{L}\p{N}]+/u', $proc, -1, PREG_SPLIT_NO_EMPTY);
       if (count($words) > 1) {
         $proc = $this->splitKeys($words);
-        $proc['#conjunction'] = 'AND';
+        if ($proc) {
+          $proc['#conjunction'] = 'AND';
+        }
+        else {
+          $proc = NULL;
+        }
       }
       return $proc;
     }

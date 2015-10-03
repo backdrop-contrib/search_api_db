@@ -875,6 +875,17 @@ class SearchApiDbTest extends DrupalWebTestCase {
     );
     usort($results['search_api_facets']['body'], array($this, 'facetCompare'));
     $this->assertEqual($results['search_api_facets']['body'], $expected, 'Correct facets were returned for a fulltext field.');
+
+    // Regression tests for #2511860.
+    $query = $this->buildSearch();
+    $query->condition('body', 'ab xy');
+    $results = $query->execute();
+    $this->assertEqual($results['result count'], 5, 'Fulltext filters on short words do not change the result.');
+
+    $query = $this->buildSearch();
+    $query->condition('body', 'ab ab');
+    $results = $query->execute();
+    $this->assertEqual($results['result count'], 5, 'Fulltext filters on duplicate short words do not change the result.');
   }
 
   /**
