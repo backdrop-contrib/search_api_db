@@ -176,6 +176,7 @@ class SearchApiDbService extends SearchApiAbstractService {
       'search_api_autocomplete' => TRUE,
       'search_api_facets' => TRUE,
       'search_api_facets_operator_or' => TRUE,
+      'search_api_random_sort' => TRUE,
       'search_api_service_extra' => TRUE,
     );
     return isset($supported[$feature]);
@@ -1814,6 +1815,10 @@ class SearchApiDbService extends SearchApiAbstractService {
         }
         if ($field_name == 'search_api_id') {
           $db_query->orderBy('item_id', $order);
+          continue;
+        }
+        if ($field_name == 'search_api_random') {
+          $db_query->orderRandom();
           continue;
         }
         if (!isset($fields[$field_name])) {
