@@ -1169,7 +1169,9 @@ class SearchApiDbService extends SearchApiAbstractService {
     $this->preQuery($db_query, $query);
 
     $time_processing_done = microtime(TRUE);
-    $results = array();
+    $results = array(
+      'results' => array(),
+    );
 
     $skip_count = $query->getOption('skip result count');
     if (!$skip_count) {
@@ -1192,7 +1194,6 @@ class SearchApiDbService extends SearchApiAbstractService {
       $this->setQuerySort($query, $db_query, $fields);
 
       $result = $db_query->execute();
-      $time_queries_done = microtime(TRUE);
 
       foreach ($result as $row) {
         $results['results'][$row->item_id] = array(
@@ -1204,10 +1205,7 @@ class SearchApiDbService extends SearchApiAbstractService {
         $results['result count'] = !empty($results['results']);
       }
     }
-    else {
-      $time_queries_done = microtime(TRUE);
-      $results['results'] = array();
-    }
+    $time_queries_done = microtime(TRUE);
 
     $results['warnings'] = array_keys($this->warnings);
     $results['ignored'] = array_keys($this->ignored);

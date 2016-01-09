@@ -886,6 +886,14 @@ class SearchApiDbTest extends DrupalWebTestCase {
     $query->condition('body', 'ab ab');
     $results = $query->execute();
     $this->assertEqual($results['result count'], 5, 'Fulltext filters on duplicate short words do not change the result.');
+
+    // Regression test for #2632426.
+    $query = $this->buildSearch();
+    $query->condition('type', 'unknown_type');
+    $query->setOption('skip result count', TRUE);
+    $results = $query->execute();
+    $this->assertEqual($results['result count'], FALSE, 'Search for unknown type returned correct result count.');
+    $this->assertEqual($results['results'], array(), 'Search for unknown type returned an empty result set.');
   }
 
   /**
