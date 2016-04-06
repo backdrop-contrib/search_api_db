@@ -1036,9 +1036,9 @@ class SearchApiDbService extends SearchApiAbstractService {
             // Check for over-long tokens.
             $score = $v['score'];
             $v = $v['value'];
-            if (strlen($v) > 50) {
+            if (drupal_strlen($v) > 50) {
               $words = preg_split('/[^\p{L}\p{N}]+/u', $v, -1, PREG_SPLIT_NO_EMPTY);
-              if (count($words) > 1 && max(array_map('strlen', $words)) <= 50) {
+              if (count($words) > 1 && max(array_map('drupal_strlen', $words)) <= 50) {
                 // Overlong token is due to bad tokenizing.
                 // Check for "Tokenizer" preprocessor on index.
                 if (empty($index->options['processors']['search_api_tokenizer']['status'])) {
@@ -1055,11 +1055,11 @@ class SearchApiDbService extends SearchApiAbstractService {
 
               $tokens = array();
               foreach ($words as $word) {
-                if (strlen($word) > 50) {
+                if (drupal_strlen($word) > 50) {
                   watchdog('search_api_db', 'An overlong word (more than 50 characters) was encountered while indexing: %word.<br />' .
                       'Database search servers currently cannot index such words correctly – the word was therefore trimmed to the allowed length.',
                       array('%word' => $word), WATCHDOG_WARNING);
-                  $word = self::mbStrcut($word, 0, 50);
+                  $word = drupal_substr($word, 0, 50);
                 }
                 $tokens[] = array(
                   'value' => $word,
@@ -1080,8 +1080,8 @@ class SearchApiDbService extends SearchApiAbstractService {
         if ($original_type == 'date') {
           return date('c', $value);
         }
-        if (strlen($value) > 255) {
-          $value = self::mbStrcut($value, 0, 255);
+        if (drupal_strlen($value) > 255) {
+          $value = drupal_substr($value, 0, 255);
           watchdog('search_api_db', 'An overlong value (more than 255 characters) was encountered while indexing: %value.<br />' .
               'Database search servers currently cannot index such values correctly – the value was therefore trimmed to the allowed length.',
               array('%value' => $value), WATCHDOG_WARNING);

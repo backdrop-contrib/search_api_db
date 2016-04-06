@@ -1,5 +1,7 @@
 Search API Database Search 1.x, dev (xxxx-xx-xx):
 -------------------------------------------------
+- #2616804 by drunken monkey, mfb: Fixed indexing of words with multi-byte
+  characters.
 - #2632426 by drunken monkey: Fixed "results" key sometimes missing in search
   results.
 - #2621430 by SpaghettiBolognese: Added "random sorting" feature.

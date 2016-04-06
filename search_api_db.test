@@ -930,8 +930,10 @@ class SearchApiDbTest extends DrupalWebTestCase {
     $this->indexItems();
 
     $this->drupalGet('search_api_test/insert');
+    $mb_string = 'äöüßáŧæøðđŋħĸµäöüßáŧæøðđŋħĸµ';
     $this->insertItem(array(
       'id' => 6,
+      'body' => $mb_string,
       'prices' => '3.5,3.25,3.75,3.5',
     ));
 
@@ -945,6 +947,22 @@ class SearchApiDbTest extends DrupalWebTestCase {
     $results = $query->execute();
     $this->assertEqual($results['result count'], 1, 'Filter on decimal field returned correct number of results.');
     $this->assertEqual(array_keys($results['results']), array(6), 'Filter on decimal field returned correct result.');
+    $this->assertEqual($results['warnings'], array(), 'No warnings were displayed.');
+
+    // Regression test for #2616804.
+    // The word has 28 Unicode characters but 56 bytes. Verify that it was still
+    // indexed correctly.
+    $query = $this->buildSearch($mb_string);
+    $results = $query->execute();
+    $this->assertEqual($results['result count'], 1, 'Search for word with 28 multi-byte characters returned correct number of results.');
+    $this->assertEqual(array_keys($results['results']), array(6), 'Search for word with 28 multi-byte characters returned correct result.');
+    $this->assertEqual($results['ignored'], array(), 'No keys were ignored.');
+    $this->assertEqual($results['warnings'], array(), 'No warnings were displayed.');
+
+    $query = $this->buildSearch($mb_string . 'ä');
+    $results = $query->execute();
+    $this->assertEqual($results['result count'], 0, 'Search for unknown word with 29 multi-byte characters returned no results.');
+    $this->assertEqual($results['ignored'], array(), 'No keys were ignored.');
     $this->assertEqual($results['warnings'], array(), 'No warnings were displayed.');
   }
 
