@@ -1530,7 +1530,8 @@ class SearchApiDbService extends SearchApiAbstractService {
         }
 
         foreach ($words as $i => $word) {
-          $db_or->condition('t.word', '%' . $this->connection->escapeLike($word) . '%', 'LIKE');
+          $like = '%' . $this->connection->escapeLike($word) . '%';
+          $db_or->condition('t.word', $like, 'LIKE');
 
           // Add an expression for each keyword that shows whether the indexed
           // word matches that particular keyword. That way we don't return a
@@ -1538,7 +1539,7 @@ class SearchApiDbService extends SearchApiAbstractService {
           // multiple keywords. We also remember the column name so we can
           // afterwards verify that each word matched at least once.
           $alias = 'w' . $i;
-          $alias = $db_query->addExpression("t.word LIKE '%" . $this->connection->escapeLike($word) . "%'", $alias);
+          $alias = $db_query->addExpression("CASE WHEN t.word LIKE :like_$alias THEN 1 ELSE 0 END", $alias, array(":like_$alias" => $like));
           $db_query->groupBy($alias);
           $word_hits[] = $alias;
         }
