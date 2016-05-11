@@ -2000,7 +2000,7 @@ class SearchApiDbService extends SearchApiAbstractService {
    *   The name of the temporary table, or FALSE on failure.
    */
   protected function getTemporaryResultsTable(SelectQueryInterface $db_query) {
-    // We only need the id field, not the score.
+    // We only need the ID column, not the score.
     $fields = &$db_query->getFields();
     unset($fields['score']);
     if (count($fields) != 1 || !isset($fields['item_id'])) {
@@ -2015,6 +2015,11 @@ class SearchApiDbService extends SearchApiAbstractService {
     // discarded.
     $group_by = &$db_query->getGroupBy();
     $group_by = array_intersect_key($group_by, array('t.item_id' => TRUE));
+
+    // The order of results also doesn't matter here. Also, this might lead to
+    // errors if the ORDER BY clause references any expressions we removed.
+    $sort = &$db_query->getOrderBy();
+    $sort = array();
 
     $db_query->distinct();
     if (!$db_query->preExecute()) {

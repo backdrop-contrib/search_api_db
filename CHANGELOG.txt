@@ -1,5 +1,7 @@
 Search API Database Search 1.x, dev (xxxx-xx-xx):
 -------------------------------------------------
+- #2717393 by drunken monkey: Fixed altering of database query for creating a
+  temporary table.
 - #2446741 by drunken monkey: Fixed partial matching on MS SQL Server.
 - #2616804 by drunken monkey, mfb: Fixed indexing of words with multi-byte
   characters.
