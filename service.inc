@@ -1656,7 +1656,7 @@ class SearchApiDbService extends SearchApiAbstractService {
    */
   protected function createFilterCondition(SearchApiQueryFilterInterface $filter, array $fields, SelectQueryInterface $db_query) {
     $cond = db_condition($filter->getConjunction());
-    // Store whether a JOIN alrady occurred for a field, so we don't JOIN
+    // Store whether a JOIN already occurred for a field, so we don't JOIN
     // repeatedly for OR filters.
     $first_join = array();
     // Store the table aliases for the fields in this condition group.
