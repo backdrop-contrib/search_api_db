@@ -1163,11 +1163,6 @@ class SearchApiDbService extends SearchApiAbstractService {
 
     $db_query = $this->createDbQuery($query, $fields);
 
-    // Allow subclasses and other modules to alter the query (before a count
-    // query is constructed from it).
-    drupal_alter('search_api_db_query', $db_query, $query);
-    $this->preQuery($db_query, $query);
-
     $time_processing_done = microtime(TRUE);
     $results = array(
       'results' => array(),
@@ -1307,6 +1302,10 @@ class SearchApiDbService extends SearchApiAbstractService {
     $db_query->addTag('search_api_db_search');
     $db_query->addMetaData('search_api_query', $query);
     $db_query->addMetaData('search_api_db_fields', $fields);
+
+    // Allow subclasses and other modules to alter the query.
+    drupal_alter('search_api_db_query', $db_query, $query);
+    $this->preQuery($db_query, $query);
 
     return $db_query;
   }

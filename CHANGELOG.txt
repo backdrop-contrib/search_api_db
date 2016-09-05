@@ -1,5 +1,7 @@
 Search API Database Search 1.x, dev (xxxx-xx-xx):
 -------------------------------------------------
+- #2775627 by cosolom, drunken monkey: Fixed altering of all search-related DB
+  queries.
 - #2745655 by drunken monkey: Fixed "not empty" condition on fulltext fields.
 - #2717393 by drunken monkey: Fixed altering of database query for creating a
   temporary table.
