@@ -1524,8 +1524,8 @@ class SearchApiDbService extends SearchApiAbstractService {
         // "word", which we remove since it will be useless to us in this case.
         $columns = &$db_query->getFields();
         unset($columns['word']);
-        foreach (array_keys($columns) as $column) {
-          $db_query->groupBy($column);
+        foreach ($columns as $column => $info) {
+          $db_query->groupBy($info['table'] . '.' . $column);
         }
 
         foreach ($words as $i => $word) {
