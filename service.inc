@@ -2106,23 +2106,40 @@ class SearchApiDbService extends SearchApiAbstractService {
         'pass' => $pass,
       ));
 
-      // We need a list of all current results to match the suggestions against.
-      // However, since MySQL doesn't allow using a temporary table multiple
-      // times in one query, we regrettably have to do it this way.
-      if (count($query->getFields()) > 1) {
-        $all_results = $db_query->execute()->fetchCol();
-        // Compute the total number of results so we can later sort out matches
-        // that occur too often.
-        $total = count($all_results);
+      $text_fields = array();
+      foreach ($query->getFields() as $field) {
+        if (isset($fields[$field]) && search_api_is_text_type($fields[$field]['type'])) {
+          $text_fields[] = $field;
+        }
       }
-      else {
+      if (empty($text_fields)) {
+        return array();
+      }
+
+      // For each text field that will be searched, store the item IDs in a
+      // temporary table. This is unfortunately necessary since MySQL doesn't
+      // allow using a temporary table multiple times in a single query.
+      $all_results = array();
+      $total = NULL;
+      $first_temp_table = TRUE;
+      foreach ($text_fields as $field) {
         $table = $this->getTemporaryResultsTable($db_query);
         if (!$table) {
           return array();
         }
-        $all_results = $this->connection->select($table, 't')
+        if ($first_temp_table) {
+          // For subsequent temporary tables, just use a plain SELECT over the
+          // first to fill them, instead of the (potentially very complex)
+          // search query.
+          $first_temp_table = FALSE;
+          $db_query = $this->connection->select($table)
+            ->fields($table, array('item_id'));
+        }
+        $all_results[$field] = $this->connection->select($table, 't')
           ->fields('t', array('item_id'));
-        $total = $this->connection->query("SELECT COUNT(item_id) FROM {{$table}}")->fetchField();
+        if ($total === NULL) {
+          $total = $this->connection->query("SELECT COUNT(item_id) FROM {{$table}}")->fetchField();
+        }
       }
       $max_occurrences = max(1, floor($total * variable_get('search_api_db_autocomplete_max_occurrences', 0.9)));
 
@@ -2134,13 +2151,10 @@ class SearchApiDbService extends SearchApiAbstractService {
       }
 
       $word_query = NULL;
-      foreach ($query->getFields() as $field) {
-        if (!isset($fields[$field]) || !search_api_is_text_type($fields[$field]['type'])) {
-          continue;
-        }
+      foreach ($text_fields as $field) {
         $field_query = $this->connection->select($fields[$field]['table'], 't')
           ->fields('t', array('word', 'item_id'))
-          ->condition('item_id', $all_results, 'IN')
+          ->condition('item_id', $all_results[$field], 'IN')
           ->condition('field_name', $this->getTextFieldName($field));
         if ($pass == 1) {
           $field_query->condition('word', $incomplete_like, 'LIKE')

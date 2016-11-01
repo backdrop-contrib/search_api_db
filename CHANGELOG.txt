@@ -1,5 +1,7 @@
 Search API Database Search 1.x, dev (xxxx-xx-xx):
 -------------------------------------------------
+- #2807111 by SpadXIII, drunken monkey: Added performance improvements for
+  multi-field autocompletion.
 - #2775627 by cosolom, drunken monkey: Fixed altering of all search-related DB
   queries.
 - #2745655 by drunken monkey: Fixed "not empty" condition on fulltext fields.
