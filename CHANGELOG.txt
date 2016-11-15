@@ -1,5 +1,6 @@
 Search API Database Search 1.x, dev (xxxx-xx-xx):
 -------------------------------------------------
+- #2795245 by drunken monkey: Fixed changing of a field's type to "Fulltext".
 - #2807111 by SpadXIII, drunken monkey: Added performance improvements for
   multi-field autocompletion.
 - #2775627 by cosolom, drunken monkey: Fixed altering of all search-related DB

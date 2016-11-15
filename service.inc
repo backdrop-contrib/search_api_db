@@ -607,15 +607,21 @@ class SearchApiDbService extends SearchApiAbstractService {
             // If we have not encountered a text table, assign a name for it.
             $text_table = $this->findFreeTable($prefix . '_', 'text');
           }
-          $fields[$name]['table'] = $text_table;
+          $fields[$name] = array(
+            'table' => $text_table,
+          );
         }
         else {
           if ($this->canDenormalize($field)) {
-            $fields[$name]['table'] = $prefix;
-            $fields[$name]['column'] = $this->findFreeColumn($fields[$name]['table'], $name);
+            $fields[$name] = array(
+              'table' => $prefix,
+              'column' => $this->findFreeColumn($prefix, $name),
+            );
           }
           else {
-            $fields[$name]['table'] = $this->findFreeTable($prefix . '_', $name);
+            $fields[$name] = array(
+              'table' => $this->findFreeTable($prefix . '_', $name),
+            );
           }
           $this->createFieldTable($index, $field, $fields[$name]);
         }
