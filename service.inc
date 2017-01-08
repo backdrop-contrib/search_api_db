@@ -901,11 +901,15 @@ class SearchApiDbService extends SearchApiAbstractService {
           if ($words) {
             $field_name = self::getTextFieldName($name);
             foreach ($words as $word) {
+              $score = round($word['score'] * $boost * self::SCORE_MULTIPLIER);
+              // Take care that the score doesn't exceed the maximum value for
+              // the database column (2^32-1).
+              $score = min((int) $score, 4294967295);
               $text_inserts[$table][] = array(
                 'item_id'    => $id,
                 'field_name' => $field_name,
                 'word'       => $word['value'],
-                'score'      => (int) round($word['score'] * $boost * self::SCORE_MULTIPLIER),
+                'score'      => $score,
               );
             }
           }
