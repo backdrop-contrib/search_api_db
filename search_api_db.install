@@ -11,7 +11,8 @@ function search_api_db_uninstall() {
  * Implements hook_update_dependencies().
  */
 function search_api_db_update_dependencies() {
-  // This update should run after primary IDs have been changed to machine names in the framework.
+  // This update should run after primary IDs have been changed to machine names
+  // in the framework.
   $dependencies['search_api_db'][7101] = array(
     'search_api' => 7102,
   );
@@ -19,8 +20,7 @@ function search_api_db_update_dependencies() {
 }
 
 /**
- * Re-arranges the $server->options['indexes'] array to be keyed by machine_name
- * instead of by id.
+ * Replace numeric index IDs with machine names in the server options.
  */
 function search_api_db_update_7101() {
   $query = db_select('search_api_server', 's');
@@ -56,7 +56,7 @@ function search_api_db_update_7101() {
 }
 
 /**
- * Solves index problems with umlauts, accented characters, etc. on MySQL servers.
+ * Solve index problems with non-ASCII characters on MySQL servers.
  */
 function search_api_db_update_7102() {
   global $databases;
@@ -83,7 +83,7 @@ function search_api_db_update_7102() {
 }
 
 /**
- * Changes date fields from int to big int.
+ * Change date fields from int to big int.
  *
  * The purpose is to support historical dates.
  */
@@ -253,7 +253,7 @@ function search_api_db_update_7106() {
             'not null' => TRUE,
             'default' => 0,
           );
-          // Add new field and poplate data.
+          // Add new field and populate data.
           $connection->schema()->addField($field['table'], 'score_int', $spec);
           $connection->update($field['table'])
             ->expression('score_int', 'score * 1000')
