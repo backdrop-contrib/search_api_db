@@ -1,5 +1,6 @@
 Search API Database Search 1.x, dev (xxxx-xx-xx):
 -------------------------------------------------
+- #2566329 by drunken monkey: Fixed calculation of fulltext facets.
 - #2848199 by renat, drunken monkey: Fixed code style issues and a typo in the
   .install file.
 - #2841169 by trrroy, drunken monkey: Fixed problems with giant scores in DB

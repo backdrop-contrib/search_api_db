@@ -1683,18 +1683,19 @@ class SearchApiDbService extends SearchApiAbstractService {
         }
         $field = $fields[$f[0]];
         $not_equals = $f[2] == '<>' || $f[2] == '!=';
+        $text_type = search_api_is_text_type($field['type']);
         // If the field is in its own table, we have to check for NULL values in
         // a special way (i.e., check for missing entries in that table).
-        if ($f[1] === NULL && $field['column'] === 'value') {
+        if ($f[1] === NULL && ($field['column'] === 'value' || $text_type)) {
           $query = $this->connection->select($field['table'], 't')
             ->fields('t', array('item_id'));
-          if (search_api_is_text_type($field['type'])) {
+          if ($text_type) {
             $query->condition('t.field_name', $f[0]);
           }
           $cond->condition('t.item_id', $query, $not_equals ? 'IN' : 'NOT IN');
           continue;
         }
-        if (search_api_is_text_type($field['type'])) {
+        if ($text_type) {
           $keys = $this->prepareKeys($f[1]);
           if (!isset($keys)) {
             continue;
@@ -1921,7 +1922,7 @@ class SearchApiDbService extends SearchApiAbstractService {
         // IS NOT NULL for shared tables.
         $is_text_type = search_api_is_text_type($field['type']);
         $alias = $this->getTableAlias($field, $select, TRUE, $facet['missing'] ? 'leftJoin' : 'innerJoin');
-        $select->addField($alias, $is_text_type ? 'word' : $field['column'], 'value');
+        $select->addField($alias, $field['column'], 'value');
         if ($is_text_type) {
           $select->condition("$alias.field_name", $this->getTextFieldName($facet['field']));
         }
@@ -1967,7 +1968,12 @@ class SearchApiDbService extends SearchApiAbstractService {
           if ($values) {
             $select->condition($field['column'], $values, 'NOT IN');
           }
-          $select->isNotNull($field['column']);
+          if ($is_text_type) {
+            $select->condition('t.field_name', $this->getTextFieldName($facet['field']));
+          }
+          else {
+            $select->isNotNull($field['column']);
+          }
 
           // Add tags and metadata.
           $select->addTag('search_api_db_facet_all');
@@ -2215,7 +2221,7 @@ class SearchApiDbService extends SearchApiAbstractService {
     foreach ($fields as $key => $field) {
       // Legacy fields do not have column set.
       if (!isset($field['column'])) {
-        $fields[$key]['column'] = 'value';
+        $fields[$key]['column'] = search_api_is_text_type($field['type']) ? 'word' : 'value';
       }
     }
     return $fields;
