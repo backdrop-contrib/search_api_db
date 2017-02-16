@@ -571,11 +571,19 @@ class SearchApiDbService extends SearchApiAbstractService {
         elseif ($text_table && $new_inner_type == 'text' && $field['boost'] != $new_fields[$name]['boost']) {
           $change = TRUE;
           if (!$reindex) {
-            $multiplier = $new_fields[$name]['boost'] / $field['boost'];
-            $this->connection->update($text_table)
-              ->expression('score', 'score * :mult', array(':mult' => $multiplier))
-              ->condition('field_name', self::getTextFieldName($name))
-              ->execute();
+            // If there was a non-zero boost set previously, we can just update
+            // all scores with a single UPDATE query. Otherwise, no way around
+            // re-indexing.
+            if ($field['boost']) {
+              $multiplier = $new_fields[$name]['boost'] / $field['boost'];
+              $this->connection->update($text_table)
+                ->expression('score', 'score * :mult', array(':mult' => $multiplier))
+                ->condition('field_name', self::getTextFieldName($name))
+                ->execute();
+            }
+            else {
+              $reindex = TRUE;
+            }
           }
         }
         // Make sure the table and column now exist. (Especially important when
