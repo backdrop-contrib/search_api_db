@@ -1,5 +1,6 @@
 Search API Database Search 1.x, dev (xxxx-xx-xx):
 -------------------------------------------------
+- #2840261 by alan-ps, drunken monkey: Fixed usage of outdated hash functions.
 - #2844192 by drunken monkey: Fixed switching field boost from zero to other
   value.
 - #2566329 by drunken monkey: Fixed calculation of fulltext facets.

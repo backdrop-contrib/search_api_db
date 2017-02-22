@@ -269,6 +269,51 @@ function search_api_db_update_7106() {
 }
 
 /**
+ * Eliminates the use of low-standard hashes.
+ */
+function search_api_db_update_7107() {
+  $spec = array(
+    'description' => "The name of the field in which the token appears, or a base-64 encoded sha-256 hash of the field.",
+    'not null' => TRUE,
+    'type' => 'varchar',
+    'length' => 255,
+  );
+
+  $server_options = db_select('search_api_server', 's')
+    ->fields('s', array('id', 'options'))
+    ->condition('class', 'search_api_db_service')
+    ->execute()
+    ->fetchAllKeyed();
+
+  foreach ($server_options as $id => $options) {
+    $options = unserialize($options);
+
+    if (!empty($options['indexes'])) {
+      foreach ($options['indexes'] as $index_id => $fields) {
+        $text_table = NULL;
+
+        foreach ($fields as $field_id => $field) {
+          if (search_api_is_text_type($field['type'])) {
+            $text_table = $field['table'];
+            if (strlen($field_id) > 255) {
+              db_update($text_table)
+                ->fields(array('field_name' => drupal_hash_base64($field_id)))
+                ->condition('field_name', md5($field_id))
+                ->execute();
+            }
+          }
+        }
+
+        // If there is a text table for this index, update its description.
+        if ($text_table) {
+          db_change_field($text_table, 'field_name', 'field_name', $spec);
+        }
+      }
+    }
+  }
+}
+
+/**
  * Finds a free table name within the given database.
  *
  * Slightly modified copy of SearchApiDbService::findFreeTable().
