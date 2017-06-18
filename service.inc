@@ -2085,8 +2085,21 @@ class SearchApiDbService extends SearchApiAbstractService {
 
     // Decide which methods we want to use.
     if ($incomplete_key && $settings['suggest_suffix']) {
-      $passes[] = 1;
-      $incomplete_like = $this->connection->escapeLike($incomplete_key) . '%';
+      $processed_key = $this->splitKeys($incomplete_key);
+      if ($processed_key) {
+        // In case the $incomplete_key turned out to be more than one word, add
+        // all but the last one to the user input.
+        if (is_array($processed_key)) {
+          unset($processed_key['#conjunction']);
+          $incomplete_key = array_pop($processed_key);
+          if ($processed_key) {
+            $user_input .= ' ' . implode(' ', $processed_key);
+          }
+          $processed_key = $incomplete_key;
+        }
+        $passes[] = 1;
+        $incomplete_like = $this->connection->escapeLike($processed_key) . '%';
+      }
     }
     if ($settings['suggest_words']
         && (!$incomplete_key || strlen($incomplete_key) >= $this->options['min_chars'])) {
