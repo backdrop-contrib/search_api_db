@@ -1854,13 +1854,20 @@ class SearchApiDbService extends SearchApiAbstractService {
         $alias = $this->getTableAlias($field, $db_query);
         $db_query->orderBy($alias . '.' . $fields[$field_name]['column'], $order);
         // PostgreSQL automatically adds a field to the SELECT list when sorting
-        // on it. Therefore, if we have aggregrations present we also have to
+        // on it. Therefore, if we have aggregations present we also have to
         // add the field to the GROUP BY (since Drupal won't do it for us).
         // However, if no aggregations are present, a GROUP BY would lead to
         // another error. Therefore, we only add it if there is already a GROUP
         // BY.
         if ($db_query->getGroupBy()) {
           $db_query->groupBy($alias . '.' . $fields[$field_name]['column']);
+        }
+        // For SELECT DISTINCT queries in combination with an ORDER BY clause,
+        // MySQL 5.7 and higher require that the ORDER BY expressions are part
+        // of the field list. Ensure that all fields used for sorting are part
+        // of the select list.
+        if (empty($db_fields[$fields[$field_name]['column']])) {
+          $db_query->addField($alias, $fields[$field_name]['column']);
         }
       }
     }

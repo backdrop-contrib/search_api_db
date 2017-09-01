@@ -1,5 +1,6 @@
 Search API Database Search 1.x, dev (xxxx-xx-xx):
 -------------------------------------------------
+- #2897548 by drunken monkey: Fixed sorting on MySQL 5.7.
 - #2879881 by drunken monkey: Fixed preprocessing of autocomplete keys.
 
 Search API Database Search 1.6 (2017-02-23):
