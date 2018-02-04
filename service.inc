@@ -1112,6 +1112,11 @@ class SearchApiDbService extends SearchApiAbstractService {
         return 0 + $value;
 
       case 'boolean':
+        // Numeric strings need to be converted to a numeric type before
+        // converting to a boolean, as strings like '0.00' evaluate to TRUE.
+        if (is_string($value) && is_numeric($value)) {
+          $value = 0 + $value;
+        }
         return $value ? 1 : 0;
 
       case 'date':
