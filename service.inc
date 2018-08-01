@@ -174,6 +174,7 @@ class SearchApiDbService extends SearchApiAbstractService {
   public function supportsFeature($feature) {
     $supported = array(
       'search_api_autocomplete' => TRUE,
+      'search_api_between' => TRUE,
       'search_api_facets' => TRUE,
       'search_api_facets_operator_or' => TRUE,
       'search_api_random_sort' => TRUE,
@@ -1691,57 +1692,63 @@ class SearchApiDbService extends SearchApiAbstractService {
         }
       }
       else {
-        if (!isset($fields[$f[0]])) {
-          throw new SearchApiException(t('Unknown field in filter clause: @field.', array('@field' => $f[0])));
+        list ($field, $value, $operator) = $f;
+        if (!isset($fields[$field])) {
+          throw new SearchApiException(t('Unknown field in filter clause: @field.', array('@field' => $field)));
         }
-        $field = $fields[$f[0]];
-        $not_equals = $f[2] == '<>' || $f[2] == '!=';
-        $text_type = search_api_is_text_type($field['type']);
+        $field_info = $fields[$field];
+        $not_between = $operator === 'NOT BETWEEN';
+        $not_equals = $not_between || $operator === '<>' || $operator === '!=';
+        $text_type = search_api_is_text_type($field_info['type']);
         // If the field is in its own table, we have to check for NULL values in
         // a special way (i.e., check for missing entries in that table).
-        if ($f[1] === NULL && ($field['column'] === 'value' || $text_type)) {
-          $query = $this->connection->select($field['table'], 't')
+        if ($value === NULL && ($field_info['column'] === 'value' || $text_type)) {
+          $query = $this->connection->select($field_info['table'], 't')
             ->fields('t', array('item_id'));
           if ($text_type) {
-            $query->condition('t.field_name', $f[0]);
+            $query->condition('t.field_name', $field);
           }
           $cond->condition('t.item_id', $query, $not_equals ? 'IN' : 'NOT IN');
           continue;
         }
         if ($text_type) {
-          $keys = $this->prepareKeys($f[1]);
+          $keys = $this->prepareKeys($value);
           if (!isset($keys)) {
             continue;
           }
-          $query = $this->createKeysQuery($keys, array($f[0] => $field), $fields);
+          $query = $this->createKeysQuery($keys, array($field => $field_info), $fields);
           // We only want the item IDs, so we use the keys query as a nested query.
           $query = $this->connection->select($query, 't')->fields('t', array('item_id'));
           $cond->condition('t.item_id', $query, $not_equals ? 'NOT IN' : 'IN');
         }
         else {
-          $new_join = search_api_is_list_type($field['type'])
+          $new_join = search_api_is_list_type($field_info['type'])
               && ($filter->getConjunction() == 'AND'
-                  || empty($first_join[$f[0]]));
-          if ($new_join || empty($tables[$f[0]])) {
-            $tables[$f[0]] = $this->getTableAlias($field, $db_query, $new_join);
-            $first_join[$f[0]] = TRUE;
+                  || empty($first_join[$field]));
+          if ($new_join || empty($tables[$field])) {
+            $tables[$field] = $this->getTableAlias($field_info, $db_query, $new_join);
+            $first_join[$field] = TRUE;
           }
-          $column = $tables[$f[0]] . '.' . $field['column'];
-          if ($f[1] === NULL) {
-            $method = ($f[2] == '=') ? 'isNull' : 'isNotNull';
+          $column = $tables[$field] . '.' . $field_info['column'];
+          if ($value === NULL) {
+            $method = ($operator == '=') ? 'isNull' : 'isNotNull';
             $cond->$method($column);
           }
-          elseif ($not_equals && search_api_is_list_type($field['type'])) {
+          elseif ($not_equals && search_api_is_list_type($field_info['type'])) {
             // The situation is more complicated for multi-valued fields, since
             // we must make sure that results are excluded if ANY of the field's
             // values equals the one given in this condition.
-            $query = $this->connection->select($field['table'], 't')
+            $sub_operator = ($not_between) ? 'BETWEEN' : '=';
+            $query = $this->connection->select($field_info['table'], 't')
               ->fields('t', array('item_id'))
-              ->condition($field['column'], $f[1]);
+              ->condition($field_info['column'], $value, $sub_operator);
             $cond->condition('t.item_id', $query, 'NOT IN');
           }
+          elseif ($not_between) {
+            $cond->where("$column NOT BETWEEN {$value[0]} AND {$value[1]}");
+          }
           else {
-            $cond->condition($column, $f[1], $f[2]);
+            $cond->condition($column, $value, $operator);
           }
         }
       }
