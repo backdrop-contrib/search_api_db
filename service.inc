@@ -132,7 +132,7 @@ class SearchApiDbService extends SearchApiAbstractService {
       '#type' => 'select',
       '#title' => t('Minimum word length'),
       '#description' => t('The minimum number of characters a word must consist of to be indexed.'),
-      '#options' => drupal_map_assoc(array(1, 2, 3, 4, 5, 6)),
+      '#options' => backdrop_map_assoc(array(1, 2, 3, 4, 5, 6)),
       '#default_value' => $options['min_chars'],
     );
 
@@ -327,12 +327,12 @@ class SearchApiDbService extends SearchApiAbstractService {
     // A DB prefix might further reduce the maximum length of the table name.
     $maxbytes = 62;
     if ($db_prefix = $this->connection->tablePrefix()) {
-      // Use strlen instead of drupal_strlen since we want to measure bytes
+      // Use strlen instead of backdrop_strlen since we want to measure bytes
       // instead of characters.
       $maxbytes -= strlen($db_prefix);
     }
 
-    $base = $table = self::mbStrcut($prefix . drupal_strtolower(preg_replace('/[^a-z0-9]/i', '_', $name)), 0, $maxbytes);
+    $base = $table = self::mbStrcut($prefix . backdrop_strtolower(preg_replace('/[^a-z0-9]/i', '_', $name)), 0, $maxbytes);
     $i = 0;
     while ($this->connection->schema()->tableExists($table)) {
       $suffix = '_' . ++$i;
@@ -361,7 +361,7 @@ class SearchApiDbService extends SearchApiAbstractService {
   protected function findFreeColumn($table, $column) {
     $maxbytes = 62;
 
-    $base = $name = self::mbStrcut(drupal_strtolower(preg_replace('/[^a-z0-9]/i', '_', $column)), 0, $maxbytes);
+    $base = $name = self::mbStrcut(backdrop_strtolower(preg_replace('/[^a-z0-9]/i', '_', $column)), 0, $maxbytes);
     // If the table does not exist yet, the initial name is not taken.
     if ($this->connection->schema()->tableExists($table)) {
       $i = 0;
@@ -696,7 +696,7 @@ class SearchApiDbService extends SearchApiAbstractService {
         $this->connection->schema()->createTable($text_table, $table);
 
         // Some DBMSs will need a character encoding and collation set. Since
-        // this largely circumvents Drupal's database layer (but isn't integral
+        // this largely circumvents Backdrop's database layer (but isn't integral
         // enough to fail completely when it doesn't work), we wrap it in a
         // try/catch, to be on the safe side.
         try {
@@ -709,7 +709,7 @@ class SearchApiDbService extends SearchApiAbstractService {
               $this->connection->query("ALTER TABLE {{$text_table}} ALTER COLUMN word SET DATA TYPE character varying(50) COLLATE \"C\"");
               break;
 
-            // @todo Add fixes for other DBMSs.
+              // @todo Add fixes for other DBMSs.
             case 'oracle':
             case 'sqlite':
             case 'sqlsrv':
@@ -865,7 +865,7 @@ class SearchApiDbService extends SearchApiAbstractService {
           $fields = $this->options['indexes'][$index->machine_name];
         }
         if (empty($fields[$name]['table'])) {
-          watchdog('search_api_db', "Unknown field !field: please check (and re-save) the index's fields settings.",
+          watchdog('search_api_db', "Unknown field !field: please check (and re-save) the index's fields settings.", 
               array('!field' => $name), WATCHDOG_WARNING);
           continue;
         }
@@ -895,10 +895,10 @@ class SearchApiDbService extends SearchApiAbstractService {
             if (is_numeric($value)) {
               $value = ltrim($value, '-0');
             }
-            elseif (drupal_strlen($value) < $this->options['min_chars']) {
+            elseif (backdrop_strlen($value) < $this->options['min_chars']) {
               continue;
             }
-            $value = drupal_strtolower($value);
+            $value = backdrop_strtolower($value);
             $token['score'] *= $focus;
             if (!isset($words[$value])) {
               $words[$value] = $token;
@@ -915,10 +915,10 @@ class SearchApiDbService extends SearchApiAbstractService {
               // the database column (2^32-1).
               $score = min((int) $score, 4294967295);
               $text_inserts[$table][] = array(
-                'item_id'    => $id,
+                'item_id' => $id,
                 'field_name' => $field_name,
-                'word'       => $word['value'],
-                'score'      => $score,
+                'word' => $word['value'],
+                'score' => $score,
               );
             }
           }
@@ -984,7 +984,7 @@ class SearchApiDbService extends SearchApiAbstractService {
   protected static function getTextFieldName($name) {
     if (strlen($name) > 255) {
       // Replace long field names with something unique and predictable.
-      return drupal_hash_base64($name);
+      return backdrop_hash_base64($name);
     }
     else {
       return $name;
@@ -1055,9 +1055,9 @@ class SearchApiDbService extends SearchApiAbstractService {
             // Check for over-long tokens.
             $score = $v['score'];
             $v = $v['value'];
-            if (drupal_strlen($v) > 50) {
+            if (backdrop_strlen($v) > 50) {
               $words = preg_split('/[^\p{L}\p{N}]+/u', $v, -1, PREG_SPLIT_NO_EMPTY);
-              if (count($words) > 1 && max(array_map('drupal_strlen', $words)) <= 50) {
+              if (count($words) > 1 && max(array_map('backdrop_strlen', $words)) <= 50) {
                 // Overlong token is due to bad tokenizing.
                 // Check for "Tokenizer" preprocessor on index.
                 if (empty($index->options['processors']['search_api_tokenizer']['status'])) {
@@ -1067,18 +1067,18 @@ class SearchApiDbService extends SearchApiAbstractService {
                 }
                 else {
                   watchdog('search_api_db', 'An overlong word (more than 50 characters) was encountered while indexing, due to bad tokenizing. ' .
-                      'Please check your settings for the "Tokenizer" preprocessor to ensure that data is tokenized correctly.',
+                      'Please check your settings for the "Tokenizer" preprocessor to ensure that data is tokenized correctly.', 
                       array(), WATCHDOG_WARNING);
                 }
               }
 
               $tokens = array();
               foreach ($words as $word) {
-                if (drupal_strlen($word) > 50) {
+                if (backdrop_strlen($word) > 50) {
                   watchdog('search_api_db', 'An overlong word (more than 50 characters) was encountered while indexing: %word.<br />' .
-                      'Database search servers currently cannot index such words correctly – the word was therefore trimmed to the allowed length.',
+                      'Database search servers currently cannot index such words correctly – the word was therefore trimmed to the allowed length.', 
                       array('%word' => $word), WATCHDOG_WARNING);
-                  $word = drupal_substr($word, 0, 50);
+                  $word = backdrop_substr($word, 0, 50);
                 }
                 $tokens[] = array(
                   'value' => $word,
@@ -1099,10 +1099,10 @@ class SearchApiDbService extends SearchApiAbstractService {
         if ($original_type == 'date') {
           return date('c', $value);
         }
-        if (drupal_strlen($value) > 255) {
-          $value = drupal_substr($value, 0, 255);
+        if (backdrop_strlen($value) > 255) {
+          $value = backdrop_substr($value, 0, 255);
           watchdog('search_api_db', 'An overlong value (more than 255 characters) was encountered while indexing: %value.<br />' .
-              'Database search servers currently cannot index such values correctly – the value was therefore trimmed to the allowed length.',
+              'Database search servers currently cannot index such values correctly – the value was therefore trimmed to the allowed length.', 
               array('%value' => $value), WATCHDOG_WARNING);
         }
         return $value;
@@ -1269,8 +1269,7 @@ class SearchApiDbService extends SearchApiAbstractService {
     // later, we just wrap $keys so it becomes a subkey.
     if (!empty($keys['#negation'])) {
       $keys = array(
-        '#conjunction' => 'AND',
-        $keys,
+        '#conjunction' => 'AND', $keys,
       );
     }
     // Only filter by fulltext keys if there are any real keys present.
@@ -1328,7 +1327,7 @@ class SearchApiDbService extends SearchApiAbstractService {
     $db_query->addMetaData('search_api_db_fields', $fields);
 
     // Allow subclasses and other modules to alter the query.
-    drupal_alter('search_api_db_query', $db_query, $query);
+    backdrop_alter('search_api_db_query', $db_query, $query);
     $this->preQuery($db_query, $query);
 
     return $db_query;
@@ -1396,11 +1395,11 @@ class SearchApiDbService extends SearchApiAbstractService {
    */
   protected function splitKeys($keys) {
     if (is_scalar($keys)) {
-      $proc = drupal_strtolower(trim($keys));
+      $proc = backdrop_strtolower(trim($keys));
       if (is_numeric($proc)) {
         return ltrim($proc, '-0');
       }
-      elseif (drupal_strlen($proc) < $this->options['min_chars']) {
+      elseif (backdrop_strlen($proc) < $this->options['min_chars']) {
         $this->ignored[$keys] = 1;
         return NULL;
       }
@@ -1480,8 +1479,7 @@ class SearchApiDbService extends SearchApiAbstractService {
   protected function createKeysQuery($keys, array $fields, array $all_fields) {
     if (!is_array($keys)) {
       $keys = array(
-        '#conjunction' => 'AND',
-        $keys,
+        '#conjunction' => 'AND', $keys,
       );
     }
 
@@ -1692,7 +1690,7 @@ class SearchApiDbService extends SearchApiAbstractService {
         }
       }
       else {
-        list ($field, $value, $operator) = $f;
+        list($field, $value, $operator) = $f;
         if (!isset($fields[$field])) {
           throw new SearchApiException(t('Unknown field in filter clause: @field.', array('@field' => $field)));
         }
@@ -1775,7 +1773,7 @@ class SearchApiDbService extends SearchApiAbstractService {
    *   The alias for the field's table.
    */
   protected function getTableAlias(array $field, SelectQueryInterface $db_query, $newjoin = FALSE, $join = 'leftJoin') {
-    if(!$newjoin) {
+    if (!$newjoin) {
       foreach ($db_query->getTables() as $alias => $info) {
         $table = $info['table'];
         if (is_scalar($table) && $table == $field['table']) {
@@ -1800,8 +1798,7 @@ class SearchApiDbService extends SearchApiAbstractService {
    *
    * @see hook_search_api_db_query_alter()
    */
-  protected function preQuery(SelectQueryInterface &$db_query, SearchApiQueryInterface $query) {
-  }
+  protected function preQuery(SelectQueryInterface &$db_query, SearchApiQueryInterface $query) { }
 
   /**
    * Postprocess search results.
@@ -1815,8 +1812,7 @@ class SearchApiDbService extends SearchApiAbstractService {
    * @param SearchApiQueryInterface $query
    *   The executed search query.
    */
-  protected function postQuery(array &$results, SearchApiQueryInterface $query) {
-  }
+  protected function postQuery(array &$results, SearchApiQueryInterface $query) { }
 
   /**
    * Adds the query sort to a search database query.
@@ -1867,7 +1863,7 @@ class SearchApiDbService extends SearchApiAbstractService {
         $db_query->orderBy($alias . '.' . $fields[$field_name]['column'], $order);
         // PostgreSQL automatically adds a field to the SELECT list when sorting
         // on it. Therefore, if we have aggregations present we also have to
-        // add the field to the GROUP BY (since Drupal won't do it for us).
+        // add the field to the GROUP BY (since Backdrop won't do it for us).
         // However, if no aggregations are present, a GROUP BY would lead to
         // another error. Therefore, we only add it if there is already a GROUP
         // BY.
@@ -2049,7 +2045,7 @@ class SearchApiDbService extends SearchApiAbstractService {
     $fields = &$db_query->getFields();
     unset($fields['score']);
     if (count($fields) != 1 || !isset($fields['item_id'])) {
-      watchdog('search_api_db', 'Error while adding facets: only "item_id" field should be used, used are: @fields.',
+      watchdog('search_api_db', 'Error while adding facets: only "item_id" field should be used, used are: @fields.', 
           array('@fields' => implode(', ', array_keys($fields))), WATCHDOG_WARNING);
       return FALSE;
     }
@@ -2099,8 +2095,8 @@ class SearchApiDbService extends SearchApiAbstractService {
     $passes = array();
 
     // Make the input lowercase as the indexed data is also all lowercase.
-    $user_input = drupal_strtolower($user_input);
-    $incomplete_key = drupal_strtolower($incomplete_key);
+    $user_input = backdrop_strtolower($user_input);
+    $incomplete_key = backdrop_strtolower($incomplete_key);
 
     // Decide which methods we want to use.
     if ($incomplete_key && $settings['suggest_suffix']) {
@@ -2121,7 +2117,7 @@ class SearchApiDbService extends SearchApiAbstractService {
       }
     }
     if ($settings['suggest_words']
-        && (!$incomplete_key || strlen($incomplete_key) >= $this->options['min_chars'])) {
+         && (!$incomplete_key || strlen($incomplete_key) >= $this->options['min_chars'])) {
       $passes[] = 2;
     }
 
@@ -2136,7 +2132,7 @@ class SearchApiDbService extends SearchApiAbstractService {
 
     // Also collect all keywords already contained in the query so we don't
     // suggest them.
-    $keys = drupal_map_assoc(preg_split('/[^\p{L}\p{N}]+/u', $user_input, -1, PREG_SPLIT_NO_EMPTY));
+    $keys = backdrop_map_assoc(preg_split('/[^\p{L}\p{N}]+/u', $user_input, -1, PREG_SPLIT_NO_EMPTY));
     if ($incomplete_key) {
       $keys[$incomplete_key] = $incomplete_key;
     }
@@ -2197,7 +2193,7 @@ class SearchApiDbService extends SearchApiAbstractService {
           $total = $this->connection->query("SELECT COUNT(item_id) FROM {{$table}}")->fetchField();
         }
       }
-      $max_occurrences = max(1, floor($total * variable_get('search_api_db_autocomplete_max_occurrences', 0.9)));
+      $max_occurrences = max(1, floor($total * config_get('search_api_db.settings', 'autocomplete_max_occurrences')));
 
       if (!$total) {
         if ($pass == 1) {
@@ -2270,7 +2266,7 @@ class SearchApiDbService extends SearchApiAbstractService {
   /**
    * Emulates self::mbStrcut() if that is not available.
    *
-   * Though the Mbstring PHP extension is recommended for running Drupal, it is
+   * Though the Mbstring PHP extension is recommended for running Backdrop, it is
    * not required. Therefore, we have to wrap calls to its functions.
    *
    * @param string $str

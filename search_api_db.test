@@ -4,7 +4,7 @@
  * Class for testing index and search capabilities using the Database search
  * module.
  */
-class SearchApiDbTest extends DrupalWebTestCase {
+class SearchApiDbTest extends BackdropWebTestCase {
 
   protected $server_id;
   protected $index_id;
@@ -13,28 +13,20 @@ class SearchApiDbTest extends DrupalWebTestCase {
     return parent::assertText($text, $message ? $message : $text, $group);
   }
 
-  protected function drupalGet($path, array $options = array(), array $headers = array()) {
-    $ret = parent::drupalGet($path, $options, $headers);
+  protected function backdropGet($path, array $options = array(), array $headers = array()) {
+    $ret = parent::backdropGet($path, $options, $headers);
     $this->assertResponse(200, t('HTTP code 200 returned.'));
     return $ret;
   }
 
-  protected function drupalPost($path, $edit, $submit, array $options = array(), array $headers = array(), $form_html_id = NULL, $extra_post = NULL) {
-    $ret = parent::drupalPost($path, $edit, $submit, $options, $headers, $form_html_id, $extra_post);
+  protected function backdropPost($path, $edit, $submit, array $options = array(), array $headers = array(), $form_html_id = NULL, $extra_post = NULL) {
+    $ret = parent::backdropPost($path, $edit, $submit, $options, $headers, $form_html_id, $extra_post);
     $this->assertResponse(200, t('HTTP code 200 returned.'));
     return $ret;
-  }
-
-  public static function getInfo() {
-    return array(
-      'name' => 'Test "Database search" module',
-      'description' => 'Tests indexing and searching with the "Database search" module.',
-      'group' => 'Search API Database Search',
-    );
   }
 
   public function setUp() {
-    parent::setUp('entity', 'search_api', 'search_api_db', 'search_api_test');
+    parent::setUp('entity', 'search_api', 'search_api_db', 'search_api_test', 'entity_plus');
   }
 
   public function testFramework() {
@@ -46,7 +38,7 @@ class SearchApiDbTest extends DrupalWebTestCase {
         // It was worth a try, but if it fails just go on.
       }
     }
-    $this->drupalLogin($this->drupalCreateUser(array('administer search_api')));
+    $this->backdropLogin($this->backdropCreateUser(array('administer search_api')));
     $this->insertItems();
     $this->createServer();
     $this->createIndex();
@@ -66,7 +58,7 @@ class SearchApiDbTest extends DrupalWebTestCase {
   }
 
   protected function insertItems() {
-    $this->drupalGet('search_api_test/insert');
+    $this->backdropGet('search_api_test/insert');
     $count = db_query('SELECT COUNT(*) FROM {search_api_test}')->fetchField();
     $this->insertItem(array(
       'id' => 1,
@@ -106,7 +98,7 @@ class SearchApiDbTest extends DrupalWebTestCase {
   }
 
   protected function insertItem($values) {
-    $this->drupalPost(NULL, $values, t('Save'));
+    $this->backdropPost(NULL, $values, t('Save'));
   }
 
   protected function createServer() {
@@ -950,7 +942,7 @@ class SearchApiDbTest extends DrupalWebTestCase {
 
     $this->indexItems();
 
-    $this->drupalGet('search_api_test/insert');
+    $this->backdropGet('search_api_test/insert');
     $mb_string = 'äöüßáŧæøðđŋħĸµäöüßáŧæøðđŋħĸµ';
     $this->insertItem(array(
       'id' => 6,
@@ -1050,7 +1042,7 @@ class SearchApiDbTest extends DrupalWebTestCase {
     // Uninstall the module.
     module_disable(array('search_api_db'), FALSE);
     $this->assertFalse(module_exists('search_api_db'), 'The Database Search module was successfully disabled.');
-    drupal_uninstall_modules(array('search_api_db'), FALSE);
+    backdrop_uninstall_modules(array('search_api_db'), FALSE);
     $prefix = Database::getConnection()->prefixTables('{search_api_db_}') . '%';
     $this->assertEqual(db_find_tables($prefix), array(), 'The Database Search module was successfully uninstalled.');
   }

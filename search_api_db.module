@@ -14,3 +14,12 @@ function search_api_db_search_api_service_info() {
   );
   return $services;
 }
+
+/**
+ * Implements hook_autoload_info().
+ */
+function search_api_db_autoload_info() {
+  return array(
+    'SearchApiDbService' => 'service.inc',
+  );
+}

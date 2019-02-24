@@ -1,5 +1,5 @@
 Database search
----------------
+===============
 
 This module provides a database based implementation of the Search API. The
 database and target to use for storing and accessing the indexes can be selected
@@ -12,6 +12,12 @@ equivalent).
 The "direct" parse mode for queries will result in a simple splitting of the
 query string into keys. Additionally, search keys containing whitespace will be
 split, as searching for phrases is currently not supported.
+
+HOW TO INSTALL:
+---------------
+- Install this module using the official Backdrop CMS instructions at 
+https://backdropcms.org/guide/modules
+
 
 Supported optional features
 ---------------------------
@@ -35,7 +41,7 @@ component.
 Known problems
 --------------
 
-Currently, Drupal doesn't support setting the table collation when creating
+Currently, Backdrop doesn't support setting the table collation when creating
 tables. This might cause problems when you want to index data which can contain
 accented characters, umlauts and other non-ASCII characters (à, á, ä, …).
 To resolve the issue, please set "utf8_bin" as the collation for all tables
@@ -46,7 +52,7 @@ See [1] for details.
 [1] http://drupal.org/node/1144620
 
 Also, using facets with a database server will only work if the database user
-Drupal is using has the "CREATE TEMPORARY TABLES" permission (or similar, in
+Backdrop is using has the "CREATE TEMPORARY TABLES" permission (or similar, in
 DBMSs other than MySQL).
 
 Developer information
@@ -61,7 +67,23 @@ field settings of the server for the corresponding search index as
 Hidden variables
 ----------------
 
-- search_api_db_autocomplete_max_occurrences (default: 0.9)
+- autocomplete_max_occurrences (default: 0.9)
   By default, keywords that occur in more than 90% of results are ignored for
   autocomplete suggestions. This setting lets you modify that behaviour by
   providing your own ratio. Use 1 or greater to use all suggestions.
+
+LICENSE
+---------------    
+
+This project is GPL v2 software. See the LICENSE.txt file in this directory 
+for complete text.
+
+CURRENT MAINTAINERS
+---------------    
+
+Ported to Backdrop by [docwilmot](https://github.com/docwilmot)
+Looking for maintainers
+
+CREDITS   
+--------------- 
+Maintainer on Drupal [drunken monkey](https://www.drupal.org/u/drunken-monkey)

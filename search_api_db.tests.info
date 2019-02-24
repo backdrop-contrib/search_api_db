@@ -1,0 +1,6 @@
+[SearchApiDbTest]
+name = Test "Database search" module
+description = Tests indexing and searching with the "Database search" module.
+group = Search API Database Search
+file = search_api_db.test
+
