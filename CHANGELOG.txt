@@ -1,5 +1,7 @@
 Search API Database Search 1.x, dev (xxxx-xx-xx):
 -------------------------------------------------
+- #3119370 by drunken monkey: Fixed errors during indexing cause by
+  non-standard whitespace.
 
 Search API Database Search 1.7 (2018-09-17):
 --------------------------------------------

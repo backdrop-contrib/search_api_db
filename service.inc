@@ -892,6 +892,7 @@ class SearchApiDbService extends SearchApiAbstractService {
             $focus = min(1, .01 + 3.5 / (2 + count($words) * .015));
 
             $value = &$token['value'];
+            $value = trim(preg_replace('/[\pZ\pC]+/u', ' ', $value));
             if (is_numeric($value)) {
               $value = ltrim($value, '-0');
             }
@@ -906,6 +907,7 @@ class SearchApiDbService extends SearchApiAbstractService {
             else {
               $words[$value]['score'] += $token['score'];
             }
+            unset($value);
           }
           if ($words) {
             $field_name = self::getTextFieldName($name);
