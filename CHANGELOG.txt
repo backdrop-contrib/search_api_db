@@ -1,5 +1,7 @@
 Search API Database Search 1.x, dev (xxxx-xx-xx):
 -------------------------------------------------
+- #3142667 by drunken monkey, donquixote: Fixed reused variable name in
+  SearchApiDbService::indexItem().
 - #3119370 by drunken monkey: Fixed errors during indexing cause by
   non-standard whitespace.
 

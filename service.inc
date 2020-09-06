@@ -891,23 +891,23 @@ class SearchApiDbService extends SearchApiAbstractService {
             // at 500 words and 0.3 at 1000 words.
             $focus = min(1, .01 + 3.5 / (2 + count($words) * .015));
 
-            $value = &$token['value'];
-            $value = trim(preg_replace('/[\pZ\pC]+/u', ' ', $value));
-            if (is_numeric($value)) {
-              $value = ltrim($value, '-0');
+            $token_value = &$token['value'];
+            $token_value = trim(preg_replace('/[\pZ\pC]+/u', ' ', $token_value));
+            if (is_numeric($token_value)) {
+              $token_value = ltrim($token_value, '-0');
             }
-            elseif (drupal_strlen($value) < $this->options['min_chars']) {
+            elseif (drupal_strlen($token_value) < $this->options['min_chars']) {
               continue;
             }
-            $value = drupal_strtolower($value);
+            $token_value = drupal_strtolower($token_value);
             $token['score'] *= $focus;
-            if (!isset($words[$value])) {
-              $words[$value] = $token;
+            if (!isset($words[$token_value])) {
+              $words[$token_value] = $token;
             }
             else {
-              $words[$value]['score'] += $token['score'];
+              $words[$token_value]['score'] += $token['score'];
             }
-            unset($value);
+            unset($token_value);
           }
           if ($words) {
             $field_name = self::getTextFieldName($name);
