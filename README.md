@@ -82,7 +82,7 @@ CURRENT MAINTAINERS
 ---------------    
 
 Ported to Backdrop by [docwilmot](https://github.com/docwilmot)
-Looking for maintainers
+- [earlyburg](https://github.com/earlyburg).
 
 CREDITS   
 --------------- 
