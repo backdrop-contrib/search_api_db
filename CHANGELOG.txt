@@ -1,5 +1,7 @@
 Search API Database Search 1.x, dev (xxxx-xx-xx):
 -------------------------------------------------
+- #3273638 by Erno, drunken monkey: Fixed bug when filtering text with OR
+  conjunction.
 
 Search API Database Search 1.8 (2021-01-11):
 --------------------------------------------
