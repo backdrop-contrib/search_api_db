@@ -19,27 +19,6 @@ function search_api_db_update_dependencies() {
   return $dependencies;
 }
 
-// TODO The old hook_update_N functions cannot be applied to Backdrop.
-function search_api_db_update_7101() { }
-
-// TODO The old hook_update_N functions cannot be applied to Backdrop.
-function search_api_db_update_7102() { }
-
-// TODO The old hook_update_N functions cannot be applied to Backdrop.
-function search_api_db_update_7103() { }
-
-// TODO The old hook_update_N functions cannot be applied to Backdrop.
-function search_api_db_update_7104() { }
-
-// TODO The old hook_update_N functions cannot be applied to Backdrop.
-function search_api_db_update_7105() { }
-
-// TODO The old hook_update_N functions cannot be applied to Backdrop.
-function search_api_db_update_7106() { }
-
-// TODO The old hook_update_N functions cannot be applied to Backdrop.
-function search_api_db_update_7107() { }
-
 /**
  * Finds a free table name within the given database.
  *
@@ -108,6 +87,7 @@ function search_api_db_update_last_removed() {
 function search_api_db_update_1000() {
   $config = config('search_api_db.settings');
   $config->set('autocomplete_max_occurrences', update_variable_get('search_api_db_autocomplete_max_occurrences', 0.9));
+  $config->save();
   update_variable_del('search_api_db_autocomplete_max_occurrences');
 }
 
