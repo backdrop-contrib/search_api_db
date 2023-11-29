@@ -18,7 +18,6 @@ HOW TO INSTALL:
 - Install this module using the official Backdrop CMS instructions at
 https://backdropcms.org/guide/modules
 
-
 Supported optional features
 ---------------------------
 
@@ -72,20 +71,20 @@ Hidden variables
   autocomplete suggestions. This setting lets you modify that behaviour by
   providing your own ratio. Use 1 or greater to use all suggestions.
 
+CURRENT MAINTAINERS
+---------------
+
+- [Laryn Kragt Bakker](https://github.com/laryn)
+
+CREDITS
+---------------
+
+ - Ported to Backdrop by [docwilmot](https://github.com/docwilmot)
+ - Maintainer on Drupal [drunken monkey](https://www.drupal.org/u/drunken-monkey)
+
 LICENSE
----------------    
+---------------
 
 This project is GPL v2 software. See the LICENSE.txt file in this directory
 for complete text.
-
-CURRENT MAINTAINERS
----------------    
-
-Ported to Backdrop by [docwilmot](https://github.com/docwilmot)
-
-- [earlyburg](https://github.com/earlyburg).
-
-CREDITS   
----------------
-Maintainer on Drupal [drunken monkey](https://www.drupal.org/u/drunken-monkey)
 
