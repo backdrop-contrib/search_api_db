@@ -253,7 +253,7 @@ class SearchApiDbService extends SearchApiAbstractService {
    */
   public function preDelete() {
     // Only react on real deletes, not on reverts.
-    if ($this->server->hasStatus(ENTITY_IN_CODE)) {
+    if ($this->server->hasStatus(ENTITY_PLUS_IN_CODE)) {
       return;
     }
     if (empty($this->options['indexes'])) {
@@ -865,7 +865,7 @@ class SearchApiDbService extends SearchApiAbstractService {
           $fields = $this->options['indexes'][$index->machine_name];
         }
         if (empty($fields[$name]['table'])) {
-          watchdog('search_api_db', "Unknown field !field: please check (and re-save) the index's fields settings.", 
+          watchdog('search_api_db', "Unknown field !field: please check (and re-save) the index's fields settings.",
               array('!field' => $name), WATCHDOG_WARNING);
           continue;
         }
@@ -1067,7 +1067,7 @@ class SearchApiDbService extends SearchApiAbstractService {
                 }
                 else {
                   watchdog('search_api_db', 'An overlong word (more than 50 characters) was encountered while indexing, due to bad tokenizing. ' .
-                      'Please check your settings for the "Tokenizer" preprocessor to ensure that data is tokenized correctly.', 
+                      'Please check your settings for the "Tokenizer" preprocessor to ensure that data is tokenized correctly.',
                       array(), WATCHDOG_WARNING);
                 }
               }
@@ -1076,7 +1076,7 @@ class SearchApiDbService extends SearchApiAbstractService {
               foreach ($words as $word) {
                 if (backdrop_strlen($word) > 50) {
                   watchdog('search_api_db', 'An overlong word (more than 50 characters) was encountered while indexing: %word.<br />' .
-                      'Database search servers currently cannot index such words correctly – the word was therefore trimmed to the allowed length.', 
+                      'Database search servers currently cannot index such words correctly – the word was therefore trimmed to the allowed length.',
                       array('%word' => $word), WATCHDOG_WARNING);
                   $word = backdrop_substr($word, 0, 50);
                 }
@@ -1102,7 +1102,7 @@ class SearchApiDbService extends SearchApiAbstractService {
         if (backdrop_strlen($value) > 255) {
           $value = backdrop_substr($value, 0, 255);
           watchdog('search_api_db', 'An overlong value (more than 255 characters) was encountered while indexing: %value.<br />' .
-              'Database search servers currently cannot index such values correctly – the value was therefore trimmed to the allowed length.', 
+              'Database search servers currently cannot index such values correctly – the value was therefore trimmed to the allowed length.',
               array('%value' => $value), WATCHDOG_WARNING);
         }
         return $value;
@@ -2045,7 +2045,7 @@ class SearchApiDbService extends SearchApiAbstractService {
     $fields = &$db_query->getFields();
     unset($fields['score']);
     if (count($fields) != 1 || !isset($fields['item_id'])) {
-      watchdog('search_api_db', 'Error while adding facets: only "item_id" field should be used, used are: @fields.', 
+      watchdog('search_api_db', 'Error while adding facets: only "item_id" field should be used, used are: @fields.',
           array('@fields' => implode(', ', array_keys($fields))), WATCHDOG_WARNING);
       return FALSE;
     }
