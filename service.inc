@@ -260,7 +260,7 @@ class SearchApiDbService extends SearchApiAbstractService {
    */
   public function preDelete() {
     // Only react on real deletes, not on reverts.
-    if ($this->server->hasStatus(ENTITY_IN_CODE)) {
+    if ($this->server->hasStatus(ENTITY_PLUS_IN_CODE)) {
       return;
     }
     if (empty($this->options['indexes'])) {
