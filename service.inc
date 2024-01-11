@@ -903,7 +903,7 @@ class SearchApiDbService extends SearchApiAbstractService {
             if (is_numeric($token_value)) {
               $token_value = ltrim($token_value, '-0');
             }
-            elseif (backdrop_strlen($value) < $this->options['min_chars']) {
+            elseif (backdrop_strlen($token_value) < $this->options['min_chars']) {
               continue;
             }
             $token_value = backdrop_strtolower($token_value);
