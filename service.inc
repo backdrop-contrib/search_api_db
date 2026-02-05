@@ -1143,7 +1143,7 @@ class SearchApiDbService extends SearchApiAbstractService {
   /**
    * {@inheritdoc}
    */
-  public function deleteItems($ids = 'all', SearchApiIndex $index = NULL) {
+  public function deleteItems($ids = 'all', ?SearchApiIndex $index = NULL) {
     try {
       if (!$index) {
         if (empty($this->options['indexes'])) {
@@ -1693,7 +1693,7 @@ class SearchApiDbService extends SearchApiAbstractService {
    *   Internal information about the index's fields.
    * @param SelectQueryInterface $db_query
    *   The database query to which the condition will be added.
-   * @param SearchApiIndex $index
+   * @param ?SearchApiIndex $index
    *   (optional) The search index whose settings should be used.
    *
    * @return DatabaseCondition|null
@@ -1702,7 +1702,7 @@ class SearchApiDbService extends SearchApiAbstractService {
    * @throws SearchApiException
    *   If an unknown field was used in the filter.
    */
-  protected function createFilterCondition(SearchApiQueryFilterInterface $filter, array $fields, SelectQueryInterface $db_query, SearchApiIndex $index = NULL) {
+  protected function createFilterCondition(SearchApiQueryFilterInterface $filter, array $fields, SelectQueryInterface $db_query, ?SearchApiIndex $index = NULL) {
     $cond = db_condition($filter->getConjunction());
     // Store whether a JOIN already occurred for a field, so we don't JOIN
     // repeatedly for OR filters.
