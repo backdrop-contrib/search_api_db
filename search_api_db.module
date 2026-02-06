@@ -23,3 +23,15 @@ function search_api_db_autoload_info() {
     'SearchApiDbService' => 'service.inc',
   );
 }
+
+/**
+ * Implements hook_config_info().
+ */
+function search_api_db_config_info() {
+  return array(
+    'search_api_db.settings' => array(
+      'label' => 'Search API Database settings',
+      'group' => 'Configuration',
+    ),
+  );
+}
