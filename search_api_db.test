@@ -47,6 +47,7 @@ class SearchApiDbTest extends BackdropWebTestCase {
     $this->searchSuccess1();
     $this->checkFacets();
     $this->regressionTests();
+    $this->regressionTestsNotBetweenSqlInjection();
     $this->editServerPartial();
     $this->searchSuccessPartial();
     $this->editServer();
@@ -907,6 +908,81 @@ class SearchApiDbTest extends BackdropWebTestCase {
     );
     usort($results['search_api_facets']['body'], array($this, 'facetCompare'));
     $this->assertEqual($results['search_api_facets']['body'], $expected, 'Correct facets were returned for a fulltext field with minimum count 0.');
+  }
+
+  /**
+   * Regression tests for the "NOT BETWEEN" SQL injection security issue.
+   *
+   * SearchApiDbService::createFilterCondition() used to build the
+   * "NOT BETWEEN" condition by concatenating both range bounds directly into
+   * the SQL string instead of binding them as parameters, allowing SQL to be
+   * injected through either bound (e.g. via an exposed Views "Is not
+   * between" filter).
+   */
+  protected function regressionTestsNotBetweenSqlInjection() {
+    // A clean "NOT BETWEEN 2 AND 4" filter excludes ids 2, 3 and 4.
+    $query = $this->buildSearch()->sort('id', 'ASC');
+    $query->condition('id', array(2, 4), 'NOT BETWEEN');
+    $results = $query->execute();
+    $this->assertEqual($results['result count'], 2, 'NOT BETWEEN filter returned correct number of results.');
+    $this->assertEqual(array_keys($results['results']), array(1, 5), 'NOT BETWEEN filter returned correct result.');
+
+    // Control query: same leading numeric prefix as the injection payload
+    // below, but with no SQL attached to it.
+    $query = $this->buildSearch()->sort('id', 'ASC');
+    $query->condition('id', array(2, '4'), 'NOT BETWEEN');
+    $control = $query->execute();
+
+    // Attempt to use the upper bound to inject a boolean-true clause that
+    // would bypass the filter entirely. Before the fix, the bound was
+    // concatenated straight into the SQL string, and
+    // "NOT BETWEEN 2 AND 4 OR 1=1" matched every row regardless of id. After
+    // the fix the value is bound as a plain parameter, so the trailing
+    // " OR 1=1" is never executed as SQL and this must match the control
+    // query above exactly, not every indexed item.
+    $query = $this->buildSearch()->sort('id', 'ASC');
+    $query->condition('id', array(2, '4 OR 1=1'), 'NOT BETWEEN');
+    $results = $query->execute();
+    $this->assertEqual($results['result count'], $control['result count'], 'NOT BETWEEN filter with an injected boolean clause did not bypass filtering.');
+    $this->assertEqual(array_keys($results['results']), array_keys($control['results']), 'NOT BETWEEN filter with an injected boolean clause returned the same results as an equivalent non-malicious filter.');
+    $this->assertNotEqual($results['result count'], 5, 'NOT BETWEEN filter with an injected boolean clause did not return every indexed item.');
+
+    // Attempt to use the upper bound to break the query with unbalanced
+    // syntax, which previously produced a database error instead of a
+    // normal, bounded result set.
+    $query = $this->buildSearch()->sort('id', 'ASC');
+    $query->condition('id', array(2, '4) OR (SELECT 1'), 'NOT BETWEEN');
+    try {
+      $query->execute();
+      $this->pass('NOT BETWEEN filter with a malformed injection payload did not raise a database error.');
+    }
+    catch (Exception $e) {
+      $this->fail('NOT BETWEEN filter with a malformed injection payload raised a database error: ' . $e->getMessage());
+    }
+
+    // String fields are especially at risk, since their raw-interpolated
+    // values previously would not even have been surrounded by quotes.
+    // Item 3 has no "type" set, so only ids 1, 2, 4 and 5 have a "type"
+    // value at all.
+    $query = $this->buildSearch()->sort('id', 'ASC');
+    $query->condition('type', array('article', "item' OR '1'='1"), 'NOT BETWEEN');
+    try {
+      $results = $query->execute();
+      $this->assertNotEqual($results['result count'], 5, 'NOT BETWEEN filter with an injected boolean clause on a string field did not return every indexed item.');
+    }
+    catch (Exception $e) {
+      $this->fail('NOT BETWEEN filter with an injected boolean clause on a string field raised a database error: ' . $e->getMessage());
+    }
+
+    // Two "NOT BETWEEN" filters in the same query need distinct placeholder
+    // names internally; otherwise the second filter's bound values would
+    // silently overwrite the first filter's.
+    $query = $this->buildSearch()->sort('id', 'ASC');
+    $query->condition('id', array(2, 3), 'NOT BETWEEN');
+    $query->condition('id', array(4, 5), 'NOT BETWEEN');
+    $results = $query->execute();
+    $this->assertEqual($results['result count'], 1, 'Two NOT BETWEEN filters in the same query both take effect.');
+    $this->assertEqual(array_keys($results['results']), array(1), 'Two NOT BETWEEN filters in the same query returned the correct result.');
   }
 
   /**

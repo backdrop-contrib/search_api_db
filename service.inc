@@ -1773,7 +1773,14 @@ class SearchApiDbService extends SearchApiAbstractService {
             $cond->condition('t.item_id', $query, 'NOT IN');
           }
           elseif ($not_between) {
-            $cond->where("$column NOT BETWEEN {$value[0]} AND {$value[1]}");
+            // Backdrop core's DatabaseCondition::mapConditionOperator() only
+            // special-cases 'BETWEEN' (joining two placeholders with AND),
+            // not 'NOT BETWEEN' — so this has to be expressed as the
+            // parameterized negation of an inclusive range instead of a
+            // single operator, to avoid interpolating $value into raw SQL.
+            $cond->condition(db_or()
+              ->condition($column, $value[0], '<')
+              ->condition($column, $value[1], '>'));
           }
           else {
             $cond->condition($column, $value, $operator);
